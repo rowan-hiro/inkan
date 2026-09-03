@@ -34,3 +34,9 @@ Revisit trigger: the DriftSeal repository adopting Inkan, or the 0.1.0 release.
 * The import is the last work item before the 0.1.0 release
 
 ## Decision History
+
+### 2026-09-03T08:10:53.438Z, outcome 2026-09-03-0810-by8k
+
+Status: deferred -> deferred
+
+Revisit trigger fired: 0.1.0 was published on 2026-09-03 as @rowan-hiro/inkan (https://www.npmjs.com/package/@rowan-hiro/inkan) by hand, and npm trusted publishing is configured so later releases go through the publish workflow. The importer was not part of the release. Still deferred; the remaining trigger is the DriftSeal repository adopting Inkan.
