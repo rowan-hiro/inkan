@@ -44,3 +44,9 @@ The companion skill `use-inkan` only locates AGENTS.md, re-anchors, and points a
 Status: accepted -> accepted
 
 Protocol 2 (2026-09-03): step 3 now says the Inkan-Outcome trailer goes in the last paragraph of the commit message, next to any other trailers, with no blank line between them, because git reads trailers only from that final paragraph. Found while dogfooding: a blank line between the trailer and a Co-Authored-By line made git drop the trailer and check reported no trailer on a commit that had one in its text. init keeps the protocol 1 text verbatim and upgrades a protocol 1 block in place; a hand-edited block of either protocol is still refused. Decision unchanged.
+
+### 2026-09-03T07:19:12.188Z, outcome 2026-09-03-0718-220x
+
+Status: accepted -> accepted
+
+Superseded in part by 0014: init --claude and the .agents/skills default with --claude are the host conveniences that ship. Still no MCP server and no hooks, and CLAUDE.md is a symlink to the one policy, not a copy.

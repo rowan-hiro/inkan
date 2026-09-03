@@ -447,6 +447,7 @@ export function decisionUpdate({ root, id, status, reason, outcome }) {
 }
 
 const AGENTS_FILENAME = 'AGENTS.md';
+const CLAUDE_FILENAME = 'CLAUDE.md';
 const START_MARKER = '<!-- inkan -->';
 const END_MARKER = '<!-- /inkan -->';
 const DEFAULT_LANG = 'en';
@@ -570,10 +571,44 @@ function extractBlock(content) {
   return { start, end: stop, text: content.slice(start, stop) };
 }
 
-export function init({ root, lang }) {
+export function init({ root, lang, claude = false }) {
   if (lang !== undefined && !LANG_RE.test(lang)) throw new InkanError(`malformed --lang "${lang}"`);
 
   const dir = path.resolve(root);
+  const protocol = writeProtocol(dir, lang);
+  const linked = claude ? linkClaudeFile(dir) : false;
+  return {
+    root: dir,
+    agentsFile: protocol.agentsFile,
+    changed: protocol.changed || linked,
+    claudeFile: claude ? path.join(dir, CLAUDE_FILENAME) : null,
+  };
+}
+
+/**
+ * CLAUDE.md as a relative symlink to AGENTS.md, so Claude Code reads the one
+ * policy rather than a copy (decision 0014). Returns whether anything
+ * changed. An existing CLAUDE.md that is not that symlink is refused, never
+ * replaced.
+ */
+function linkClaudeFile(dir) {
+  const file = path.join(dir, CLAUDE_FILENAME);
+  let stat = null;
+  try {
+    stat = fs.lstatSync(file);
+  } catch {
+    // absent
+  }
+  if (stat) {
+    if (stat.isSymbolicLink() && fs.readlinkSync(file) === AGENTS_FILENAME) return false;
+    throw new InkanError(`${CLAUDE_FILENAME} already exists and is not a symlink to ${AGENTS_FILENAME}; refusing to replace it`);
+  }
+  fs.symlinkSync(AGENTS_FILENAME, file);
+  return true;
+}
+
+/** Write or upgrade the managed block; see decision 0008. */
+function writeProtocol(dir, lang) {
   fs.mkdirSync(store.outcomesDir(dir), { recursive: true });
   fs.mkdirSync(store.decisionsDir(dir), { recursive: true });
 
@@ -636,9 +671,19 @@ function sameTree(a, b) {
 
 /** Copies the bundled `skills/use-inkan/` to `<target>/use-inkan/`; refuses,
  * with no overwrite flag, when the destination exists and differs. */
-export function skillInstall({ target }) {
-  if (!target || !target.trim()) throw new InkanError('skill install requires --target <dir>');
-  const dest = path.join(path.resolve(target), 'use-inkan');
+export function skillInstall({ root, target, claude = false }) {
+  if (target !== undefined && claude) throw new InkanError('skill install takes --claude or --target <dir>, not both');
+  let base;
+  if (target !== undefined) {
+    if (!target.trim()) throw new InkanError('skill install --target needs a directory');
+    base = path.resolve(target);
+  } else {
+    // The default and --claude are project installs under the Inkan root:
+    // .agents/skills is what most hosts read, .claude/skills is Claude
+    // Code's (decision 0014).
+    base = path.join(resolveRoot(root), claude ? '.claude' : '.agents', 'skills');
+  }
+  const dest = path.join(base, 'use-inkan');
   if (fs.existsSync(dest)) {
     if (!sameTree(SKILL_SOURCE, dest)) {
       throw new InkanError(`${dest} already exists and differs from the bundled skill; remove it by hand first`);

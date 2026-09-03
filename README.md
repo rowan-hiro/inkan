@@ -57,7 +57,9 @@ inkan init
 ```
 
 This writes a managed protocol block into `AGENTS.md` and creates `.inkan/`.
-Commit both; they are part of the code from here on.
+Commit both; they are part of the code from here on. Add `--claude` to also
+link `CLAUDE.md` to `AGENTS.md`, so Claude Code reads the same policy from
+the same file.
 
 **2. Seal the outcome before touching code.**
 
@@ -213,14 +215,18 @@ The block carries a protocol number. `init`
 upgrades a block it generated under an earlier protocol in place and refuses
 to overwrite a block that was edited by hand, so the policy lives in exactly
 one place. `--lang <tag>` sets the language agents should write outcome
-prose in.
+prose in. `inkan init --claude` also creates `CLAUDE.md` as a symlink to
+`AGENTS.md`: Claude Code reads its own file name, and there is still one
+policy, not a copy.
 
 For agents that support skill files, the bundled `use-inkan` skill helps an
 agent locate Inkan and re-anchor. It only points at `AGENTS.md`; it does not
 restate or extend the protocol.
 
 ```sh
-inkan skill install --target <skills-dir>
+inkan skill install                 # .agents/skills/use-inkan, read by most agents
+inkan skill install --claude        # .claude/skills/use-inkan, for Claude Code
+inkan skill install --target <dir>  # anywhere else, including a global directory
 ```
 
 ## Decisions travel with the code
@@ -269,7 +275,7 @@ gate in the loop.
 
 | Command | Effect | Refuses when |
 |---|---|---|
-| `inkan init [--lang <tag>]` | Writes or upgrades the managed block in `AGENTS.md`; creates `.inkan/`. | The block was hand-edited. |
+| `inkan init [--lang <tag>] [--claude]` | Writes or upgrades the managed block in `AGENTS.md`; creates `.inkan/`. `--claude` also links `CLAUDE.md` to `AGENTS.md`. | The block was hand-edited. A `CLAUDE.md` exists that is not that symlink. |
 | `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]` | Seals a new outcome; prints its id. Any other open outcome is named in a notice on stderr and left untouched. | Never. |
 | `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [<id>]` | Appends an amendment; prints the new contract hash. | No reason. No open outcome. Ambiguous open outcome without `<id>`. |
 | `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | Records dispositions and closes. Status is derived: all met is `completed`, any unmet is `partial`. Prints the commit trailer line. | A live criterion has no disposition, unless closing with `-s abandoned`. No note. |
@@ -280,7 +286,7 @@ gate in the loop.
 | `inkan decision add "<title>" --context <text> --decision <text> [--driver <text>]... [--option <text>]... [--consequence <text>]... [-s <status>]` | Writes a numbered MADR file; prints its path. | Missing required sections. |
 | `inkan decision update <id> --status <status> --reason <text>` | Appends a dated history entry and sets the new status. Names the open outcome when there is one. Never edits Context or Decision Outcome. | Unknown id or status. |
 | `inkan decision list [-s <status>]` / `inkan decision show <id>` | Read-only. `show` accepts `2`, `02`, or `0002`. | Never. |
-| `inkan skill install --target <dir>` | Copies the bundled skill to `<dir>/use-inkan/`; prints the destination. | The destination exists and differs from the bundled skill. |
+| `inkan skill install [--claude \| --target <dir>]` | Copies the bundled skill to `.agents/skills/use-inkan/` under the repository root, to `.claude/skills/use-inkan/` with `--claude`, or to `<dir>/use-inkan/`; prints the destination. | The destination exists and differs from the bundled skill. `--claude` with `--target`. |
 
 Decision statuses are `proposed`, `accepted`, `rejected`, `deferred`,
 `deprecated`, and `superseded`.
@@ -316,9 +322,11 @@ benchmark (`npm run bench`) seeds ten thousand closed outcomes and holds
 
 Inkan 0.1.0 is the first release, rebuilt from scratch as the successor to
 DriftSeal. Deliberately not in this release: an importer for DriftSeal
-history, an MCP server, and installers for specific agent hosts. Those are
-adapters and can follow without changing the record format. Lanes exist
-only as an optional filing tag on `begin` and a filter on `log`.
+history and an MCP server. Those are adapters and can follow without
+changing the record format. The only host-specific convenience is
+`--claude` on `init` and `skill install`; every other host reads
+`AGENTS.md` and `.agents/skills` as they are. Lanes exist only as an
+optional filing tag on `begin` and a filter on `log`.
 
 ## License
 

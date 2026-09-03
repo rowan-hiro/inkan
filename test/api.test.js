@@ -528,6 +528,43 @@ test('skill install refuses a destination that exists and differs, with no force
   assert.throws(() => api.skillInstall({ target }), /already exists and differs/);
 });
 
-test('skill install requires --target', () => {
-  assert.throws(() => api.skillInstall({}), /requires --target/);
+test('skill install defaults to .agents/skills under the Inkan root, --claude to .claude/skills', () => {
+  const root = repo();
+  const sub = path.join(root, 'src');
+  fs.mkdirSync(sub);
+  const dest = api.skillInstall({ root: sub }).dest;
+  assert.equal(dest, path.join(root, '.agents', 'skills', 'use-inkan'));
+  assert.ok(fs.existsSync(path.join(dest, 'SKILL.md')));
+  const claudeDest = api.skillInstall({ root: sub, claude: true }).dest;
+  assert.equal(claudeDest, path.join(root, '.claude', 'skills', 'use-inkan'));
+  assert.ok(fs.existsSync(path.join(claudeDest, 'SKILL.md')));
+});
+
+test('skill install refuses --claude together with --target, and a default install outside a repository', () => {
+  assert.throws(() => api.skillInstall({ root: tmpDir(), target: tmpDir(), claude: true }), /not both/);
+  assert.throws(() => api.skillInstall({ root: tmpDir() }), /not an Inkan repository/);
+});
+
+// --- init --claude ----------------------------------------------------------
+
+test('init --claude links CLAUDE.md to AGENTS.md and is idempotent', () => {
+  const root = tmpDir();
+  const first = api.init({ root, claude: true });
+  assert.equal(first.changed, true);
+  const claudeFile = path.join(root, 'CLAUDE.md');
+  assert.ok(fs.lstatSync(claudeFile).isSymbolicLink());
+  assert.equal(fs.readlinkSync(claudeFile), 'AGENTS.md');
+  assert.equal(fs.readFileSync(claudeFile, 'utf8'), fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8'));
+  assert.equal(api.init({ root, claude: true }).changed, false);
+  // Without the flag, init leaves CLAUDE.md alone and does not create one elsewhere.
+  const plain = tmpDir();
+  api.init({ root: plain });
+  assert.ok(!fs.existsSync(path.join(plain, 'CLAUDE.md')));
+});
+
+test('init --claude refuses a CLAUDE.md that is not the symlink', () => {
+  const root = tmpDir();
+  fs.writeFileSync(path.join(root, 'CLAUDE.md'), '# my own notes\n');
+  assert.throws(() => api.init({ root, claude: true }), /not a symlink to AGENTS.md/);
+  assert.equal(fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8'), '# my own notes\n');
 });

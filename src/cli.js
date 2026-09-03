@@ -18,8 +18,9 @@ const OUTCOME_ID_RE = /^\d{4}-\d{2}-\d{2}-(?:\d{4}-)?[0-9a-z]{4}$/;
 const HELP = `Usage: inkan <command> [options]
 
 Commands:
-  init [--lang <tag>]
+  init [--lang <tag>] [--claude]
       Create .inkan/ and write the agent protocol block into AGENTS.md.
+      --claude also links CLAUDE.md to AGENTS.md.
   begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]
       Seal a new outcome; prints its id.
   amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]...
@@ -48,8 +49,10 @@ Commands:
       One line per record, ascending by id.
   decision update <id> --status <status> --reason <text> [--outcome <id>]
       Append a dated history entry and set the new status.
-  skill install --target <dir>
-      Copy the bundled use-inkan skill to <dir>/use-inkan; prints the path.
+  skill install [--claude | --target <dir>]
+      Copy the bundled use-inkan skill to .agents/skills/use-inkan, or to
+      .claude/skills/use-inkan with --claude, or to <dir>/use-inkan; prints
+      the path.
 
   help, --help, -h     show this help
   --version, -v        print the version
@@ -230,10 +233,14 @@ function run(argv) {
   try {
     switch (command) {
       case 'init': {
-        const { values } = parseArgs({ args: rest, options: { lang: { type: 'string' } } });
-        const result = api.init({ root, lang: values.lang });
+        const { values } = parseArgs({
+          args: rest,
+          options: { lang: { type: 'string' }, claude: { type: 'boolean', default: false } },
+        });
+        const result = api.init({ root, lang: values.lang, claude: values.claude });
         const verb = result.changed ? 'Initialized' : 'Already initialized';
         console.log(`${verb} Inkan in ${result.root}`);
+        if (result.claudeFile) console.log('CLAUDE.md -> AGENTS.md');
         break;
       }
       case 'begin': {
@@ -326,8 +333,11 @@ function run(argv) {
       case 'skill': {
         const [sub, ...subRest] = rest;
         if (sub !== 'install') throw new InkanError(`unknown skill subcommand "${sub}"`);
-        const { values } = parseArgs({ args: subRest, options: { target: { type: 'string' } } });
-        console.log(api.skillInstall({ target: values.target }).dest);
+        const { values } = parseArgs({
+          args: subRest,
+          options: { target: { type: 'string' }, claude: { type: 'boolean', default: false } },
+        });
+        console.log(api.skillInstall({ root, target: values.target, claude: values.claude }).dest);
         break;
       }
       default:
