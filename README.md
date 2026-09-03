@@ -1,38 +1,59 @@
 # Inkan
 
-Inkan keeps a trustworthy record of a project's process. It is not
-accountable for the project's result. A seal freezes the authoritative
-outcome at the moment it was settled, and later delivery must stay faithful
-to it. The record answers exactly three questions: is the stored outcome
-still A; is what finally got committed A; was A swapped for B mid-way
-without an explicit, reasoned amendment. Agents treat a seal as objective
-fact: they may challenge a decision when circumstances change, but they
-never question the scenario in which it was made, and the original text is
-never rewritten.
+**Seal what the work is meant to deliver. Then check that what landed is what was sealed.**
 
-Inkan is the successor to DriftSeal, rebuilt from scratch under a new name.
+Inkan is a small, zero-dependency CLI for repositories where coding agents
+do real work. It keeps a trustworthy record of what each piece of work was
+meant to deliver, how that intent changed along the way, and what was
+declared when it closed. It then binds each landing commit to that record,
+so anyone, human or agent, can ask later whether the commit is faithful to
+the promise.
 
-## The three questions
+## The problem
 
-| Question | Mechanism |
+Long agent sessions lose the plot. Context gets compacted, a fresh session
+picks up a half-finished task, and the task gets quietly reinterpreted:
+scope narrows, a criterion is forgotten, A becomes B, and the final message
+still says "done". Tests do not catch this. Tests tell you the code works.
+They do not tell you it is the code you asked for.
+
+The usual answer is more checking: more tests, more gates, re-verification
+on every look at the log. That makes an agent re-check its own past work
+every time it re-reads history, and the loop never ends. Inkan takes the
+other route. It records what was declared and when, treats the record as
+fact, and leaves judging the result to the repository's own tests.
+
+## Three questions
+
+Inkan answers exactly three questions about a piece of work, and it refuses
+to grow beyond them.
+
+| Question | How Inkan answers it |
 |---|---|
-| Is the stored outcome still A? | Append-only per-outcome file. Contract hash over the sealed text and its amendments. `status` prints the seal verbatim with its hash. |
-| Is what got committed A? | `end` records the working-tree hash (git tree, log excluded). The landing commit carries an `Inkan-Outcome: <id>` trailer. `check <commit>` compares trailer, recorded tree, and the commit's tree. |
-| Was A swapped for B without authorization? | The headline outcome is immutable. Criteria change only through `amend --reason`. Closing requires a recorded disposition for every criterion. `begin` refuses while an outcome is open and there is no `--force`. |
+| Is the stored outcome still what was sealed? | One append-only file per outcome. A contract hash over the sealed text, its criteria, and every amendment. `inkan status` prints the seal verbatim with its hash. |
+| Is what got committed the sealed outcome? | Closing records the hash of the working tree. The landing commit carries an `Inkan-Outcome: <id>` trailer. `inkan check <commit>` compares trailer, recorded hash, and recorded tree against the commit itself. |
+| Was the outcome swapped mid-way without authorization? | The headline never changes. Criteria change only through `inkan amend --reason`. Closing requires a disposition for every live criterion. A new outcome cannot begin while one is open, and there is no force flag. |
 
-## Install
+## Quick start
+
+Requires Node.js 22 or newer and git.
 
 ```sh
 npm install --global inkan
 ```
 
-This installs two identical commands: `inkan` and the short alias `ink`.
-Use whichever reads better in a given script or shell history; they accept
-exactly the same arguments.
+This installs `inkan` and its alias `ink`. They accept identical arguments.
 
-## Core workflow
+**1. Initialise the repository.**
 
-Seal an outcome before making durable changes:
+```sh
+inkan init
+```
+
+This writes a managed protocol block into `AGENTS.md` and creates `.inkan/`.
+Commit both; they are part of the code from here on.
+
+**2. Seal the outcome before touching code.**
 
 ```sh
 inkan begin "Ship account recovery" \
@@ -40,9 +61,11 @@ inkan begin "Ship account recovery" \
   --accept "a valid link resets the password"
 ```
 
-This prints an id such as `2026-09-03-1432-k7m2`. If circumstances change
-while the work is in progress, append to the same outcome instead of
-reinterpreting it:
+```
+2026-09-03-0621-82qz
+```
+
+**3. When scope changes, amend. Never reinterpret.**
 
 ```sh
 inkan amend --reason "Security review asked for rate limiting" \
@@ -50,113 +73,173 @@ inkan amend --reason "Security review asked for rate limiting" \
   --accept "more than five requests per hour are rejected"
 ```
 
-Close the outcome with a disposition for every criterion:
+The original text stays. The amendment, its reason, and the new criterion
+are appended, and the contract hash moves with them.
+
+**4. Close with a disposition for every criterion.**
 
 ```sh
-inkan end --met 1 --met 2 --met 3 --note "Shipped as scoped."
+inkan end --met 1 --met 2 --unmet 3 --note "Rate limiting deferred to the next sprint"
 ```
 
-This prints an `Inkan-Outcome: <id>` trailer. Put it in the commit that
-lands the work:
+```
+2026-09-03-0621-82qz partial
+Inkan-Outcome: 2026-09-03-0621-82qz
+```
+
+Status is derived, not chosen: every criterion met is `completed`, any
+unmet is `partial`. A truthful `partial` is a first-class result, and it is
+what an agent reports instead of stretching the definition of done.
+
+**5. Land it with the trailer.**
 
 ```sh
-git commit -m "$(printf 'feat: account recovery\n\nInkan-Outcome: 2026-09-03-1432-k7m2\n')"
+git commit -m "$(printf 'feat: account recovery\n\nInkan-Outcome: 2026-09-03-0621-82qz\n')"
 ```
 
-After losing context, whether from a new session or a new day, re-anchor
-instead of guessing at what was in progress:
+**6. Ask, any time later, whether the commit kept its promise.**
+
+```sh
+inkan check HEAD
+```
+
+```
+b751a39  Inkan-Outcome: 2026-09-03-0621-82qz
+  outcome: present, closed (partial)
+  hash: matches refold
+  tree: matches commit tree
+consistent
+```
+
+## What a swap looks like
+
+Suppose the code is changed after the outcome closed and committed under
+the same trailer. The recorded tree no longer matches the commit:
+
+```
+c7f3a54  Inkan-Outcome: 2026-09-03-0621-82qz
+  outcome: present, closed (partial)
+  hash: matches refold
+  tree: differs from commit tree
+mismatch
+a mismatch is a fact about this commit; it is recorded, not repaired
+```
+
+Exit codes are 0 for consistent, 1 for mismatch, and 2 when the commit
+carries no `Inkan-Outcome` trailer at all. Nothing is repaired and nothing
+is blocked. `check` is a report about the past, which is exactly why it can
+run in a review or a CI job without turning into a gate.
+
+## After context loss
+
+A new session, a new day, a compacted context: instead of guessing what was
+in progress, ask.
 
 ```sh
 inkan status
 inkan log -n 3
 ```
 
-An open outcome found this way is the task at hand; continue it, or stop it
-by closing it with a note. Never begin a new outcome over an open one.
+```
+[2026-09-03-0621-82qz] open
+  sealed: 2026-09-03T06:21:06.511Z
+  hash: 9850337661df733ec923efc25bf9fdcb85ce30a3bb4cb3c07d7c84dd4fcaff56
+  outcome: Ship account recovery
+  1. expired links are rejected
+  2. a valid link resets the password
+  3. more than five requests per hour are rejected
+  amend 2026-09-03T06:21:06.555Z: Security review asked for rate limiting
+    Rate-limit recovery requests per account
+```
 
-Later, check whether a landed commit stayed faithful to what it claims:
+The open outcome is the task at hand. Continue it, or close it with a note.
+Never begin over it. `log` prints one line per outcome, newest first, so
+re-anchoring costs a few lines of context, not a re-read of the history:
+
+```
+2026-09-03-0621-q51x  completed  Ship account recovery, second pass  (1/1 met)
+2026-09-03-0621-82qz  partial  Ship account recovery  (2/3 met)
+```
+
+## What Inkan refuses to do
+
+These are the product, not its limitations.
+
+- **It never runs anything.** No tests, no builds, no shell commands. The
+  only child process Inkan ever spawns is git, with a fixed argument list.
+  Whether the work is correct is the repository's job.
+- **It never gates.** Nothing in Inkan runs before or during `git commit`,
+  and `init` installs no hooks. `check` and `doctor` report on commits and
+  files that already exist.
+- **Closed is final.** There is no stale state, no invalidation, and no
+  notion that a closed outcome needs to be redone. Reviewing the log is
+  reading, not re-checking. If a past declaration now looks wrong, that is a
+  new outcome with its own seal.
+- **The scenario is never rewritten.** An agent may challenge a decision when
+  circumstances change, by amendment or by a new decision record. It never
+  edits the text that records what was known and decided at the time.
+- **No moving parts.** No server, no database, no index, no lock, no sidecar
+  file, no environment variable. Everything is plain text under `.inkan/`,
+  committed with the code, and merged by ordinary git.
+
+## Built for agents
+
+`inkan init` writes a generated protocol block into `AGENTS.md`, the file
+coding agents already read. Five rules: seal before durable changes; the
+seal is a fact; close with dispositions, then commit with the trailer;
+re-anchor with `inkan status` after context loss; closed outcomes are final.
+The block is upgraded in place on new protocol versions, and `init` refuses
+to overwrite a block that was edited by hand, so the policy lives in exactly
+one place. `--lang <tag>` sets the language agents should write outcome
+prose in.
+
+For agents that support skill files, the bundled `use-inkan` skill helps an
+agent locate Inkan and re-anchor. It only points at `AGENTS.md`; it does not
+restate or extend the protocol.
 
 ```sh
-inkan check HEAD
+inkan skill install --target <skills-dir>
 ```
 
-This reports whether the trailer, the recorded hash, and the recorded tree
-line up with what the commit actually contains. It is a read-only report
-about the past; it changes nothing and blocks nothing:
+## Decisions travel with the code
 
-```
-9f06a7b  Inkan-Outcome: 2026-09-03-33cx
-  outcome: present, closed (completed)
-  hash: matches refold
-  tree: matches commit tree
-consistent
-```
+Design choices are recorded as MADR (Markdown Architectural Decision
+Records) under `.inkan/decisions/`, one numbered `NNNN-slug.md` file each.
+`inkan decision add` writes one. Its Context and Decision Outcome sections
+record the scenario and the choice at the time, and they are never edited
+afterwards. To challenge a decision, `inkan decision update <id> --status
+<status> --reason "<text>"` appends a dated history entry, or a new record
+supersedes the old one.
 
-A mismatch replaces the offending line (`outcome: missing from commit`,
-`outcome: present, open`, `hash: does not match refold`, or `tree: differs
-from commit tree`) and prints `mismatch` instead of `consistent`; nothing is
-repaired. Exit 0 consistent, 1 mismatch, 2 when the commit carries no
-`Inkan-Outcome` trailer at all.
+An outcome names the decisions it is bound by with `--decision <id>` on
+`begin` or `amend`. They are constraints on the work, never a gate on
+closing it.
 
-`inkan doctor` folds every outcome and parses every decision, printing one
-line per problem found (a corrupt file, an id that does not match its file
-name, a duplicate decision id, a dangling decision link) or `ok: <n>
-outcomes, <m> decisions` when there is nothing to report. Exit 0 clean, 1
-problems; it never repairs or deletes anything either.
+Inkan's own design is recorded this way, from the boundary in `0001`
+onward. There is no separate design document; `inkan decision list` prints
+the index.
 
-## Commands
+## Command reference
 
 | Command | Effect | Refuses when |
 |---|---|---|
 | `inkan init [--lang <tag>]` | Writes or upgrades the managed block in `AGENTS.md`; creates `.inkan/`. | The block was hand-edited. |
-| `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]` | Seals a new outcome; prints its id. | Another outcome is open. The message lists it and says to close it with a note. |
+| `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]` | Seals a new outcome; prints its id. | Another outcome is open. The message names it and says to close it with a note. |
 | `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [<id>]` | Appends an amendment; prints the new contract hash. | No reason. No open outcome. Ambiguous open outcome without `<id>`. |
-| `inkan end [<id>] [--met <n>]... [--unmet <n> [--note]]... [-s abandoned] --note <text>` | Records dispositions and closes. Status is derived: all met is `completed`, any unmet is `partial`. Prints the commit trailer line. | A live criterion has no disposition, unless closing with `-s abandoned`. `abandoned` without a note. |
+| `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | Records dispositions and closes. Status is derived: all met is `completed`, any unmet is `partial`. Prints the commit trailer line. | A live criterion has no disposition, unless closing with `-s abandoned`. No note. |
 | `inkan status` | Prints every open outcome verbatim: sealed time, hash, lane, criteria with indexes, amendments with reasons, linked decisions. | Never. |
-| `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | One line per outcome, newest first, default 20: id, status, lane if any, headline, met count. `<id>` prints one outcome in full including amendments, dispositions, note, and tree. Filters narrow the scan. | Never. |
-| `inkan check [<commit>]` | Read-only. Reads `Inkan-Outcome` trailers, loads each named outcome from the commit's own tree, refolds it, and reports: trailer present, outcome closed, recorded hash matches refold, recorded tree matches the commit tree. Exit 0 consistent, 1 mismatch, 2 no trailer. A mismatch is a fact about a past commit; it is reported, never repaired by redoing work. | Never blocks anything. Not installable as a hook by `init`. |
-| `inkan doctor` | Folds every outcome file and parses every decision; reports corrupt files, an outcome whose `begin` id differs from its file name, duplicate decision ids, and dangling decision links. Exit 0 clean, 1 problems. | Never. |
-| `inkan decision add "<title>" --context ... --decision ... [--driver]... [--option]... [--consequence]... [-s status]` | Writes a numbered MADR file. | Missing required sections. |
-| `inkan decision update <id> --status <status> --reason <text>` | Appends a dated history entry to the MADR. Names the open outcome when there is one. Never edits Context or Decision sections. | Unknown id. |
-| `inkan decision list [-s status]` / `show <id>` | Read-only. | Never. |
-| `inkan skill install --target <dir>` | Copies `skills/use-inkan/` to `<dir>/use-inkan/`; prints the destination. | The destination exists and differs from the bundled skill. |
+| `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | One line per outcome, newest first, default 20. `<id>` prints one outcome in full, including dispositions, note, and recorded tree. Filters combine. | Never. |
+| `inkan check [<commit>]` | Read-only. Reads `Inkan-Outcome` trailers, loads each named outcome from the commit's own tree, refolds it, and reports trailer, closure, hash, and tree. Exit 0 consistent, 1 mismatch, 2 no trailer. | Never blocks anything. |
+| `inkan doctor` | Read-only. Folds every outcome and parses every decision; reports corrupt files, id mismatches, duplicate decision ids, and dangling decision links. Exit 0 clean, 1 problems. | Never. |
+| `inkan decision add "<title>" --context <text> --decision <text> [--driver <text>]... [--option <text>]... [--consequence <text>]... [-s <status>]` | Writes a numbered MADR file; prints its path. | Missing required sections. |
+| `inkan decision update <id> --status <status> --reason <text>` | Appends a dated history entry and sets the new status. Names the open outcome when there is one. Never edits Context or Decision Outcome. | Unknown id or status. |
+| `inkan decision list [-s <status>]` / `inkan decision show <id>` | Read-only. `show` accepts `2`, `02`, or `0002`. | Never. |
+| `inkan skill install --target <dir>` | Copies the bundled skill to `<dir>/use-inkan/`; prints the destination. | The destination exists and differs from the bundled skill. |
 
-`ink` accepts exactly the same arguments.
+Decision statuses are `proposed`, `accepted`, `rejected`, `deferred`,
+`deprecated`, and `superseded`.
 
-## Decisions
-
-Design choices worth defending are written as MADR (Markdown Architectural
-Decision Records) under `.inkan/decisions/`, one numbered file per decision:
-`NNNN-slug.md`. Each record's Context and Problem Statement and Decision
-Outcome describe the scenario and the choice made at the time. Those two
-sections are never edited once written; they are the historical record of
-what was actually known and decided. When circumstances change,
-`inkan decision update <id> --status <status> --reason "<text>"` appends a
-dated history entry underneath instead of rewriting the original text, or a
-new record is written that supersedes the old one. An outcome can name the
-decisions it is bound by with `--decision <id>` on `begin` or `amend`.
-
-The design of Inkan itself is recorded there, from the boundary in `0001`
-onward, so there is no separate design document; `inkan decision list`
-prints the index.
-
-## Companion skill
-
-`skills/use-inkan/SKILL.md` is a companion for coding agents that support
-this style of skill file. It only points at the repository's `AGENTS.md`
-and helps an agent re-anchor after context loss; it does not restate or
-extend the protocol written there. Install it into an agent's skill
-directory with:
-
-```sh
-inkan skill install --target <dir>
-```
-
-This copies `skills/use-inkan/` to `<dir>/use-inkan/` and prints the
-destination. It refuses, with no overwrite flag, when the destination
-already exists and differs from the bundled skill.
-
-## Storage
+## How it works
 
 ```
 .inkan/
@@ -164,45 +247,33 @@ already exists and differs from the bundled skill.
   decisions/NNNN-slug.md   MADR records
 ```
 
-Everything under `.inkan/` is committed with the code, the same as any other
-project file. An outcome id looks like `2026-09-03-1432-k7m2`: a date, the
-UTC hour and minute the outcome was begun, and four random characters, so
-ids sort chronologically to the minute and two branches essentially never
-collide. An open outcome is a file that has not yet received an `end`
-event; it can be tracked or untracked in Git, either is a true record of work
-in progress. Because each outcome has its own file, two branches that begin
-different outcomes never touch the same file, and an ordinary Git merge is
-enough to bring them together.
+An outcome id such as `2026-09-03-1432-k7m2` is the UTC date and minute the
+outcome was begun plus four random characters, so ids sort chronologically
+and two branches essentially never collide. Each outcome file holds a
+`begin` event, any `amend` events, and at most one `end` event. An open
+outcome is simply a file with no `end` yet.
 
-One file per outcome also keeps `log` and `doctor` fast without a cache:
-`node bench/history.js` (`npm run bench`) seeds ten thousand closed outcomes
-and checks that `log -n 3` stays under 50 ms, `log --grep` under 1 s, and
-`doctor` under 2 s.
+The contract hash is a SHA-256 over the outcome text, its criteria with
+their withdrawn flags, the linked decisions, and every amendment's reason
+and addition. `end` records it, together with the git tree hash of the
+working tree with `.inkan/outcomes` excluded, so the log never perturbs the
+hash of the work it describes. `check` refolds the outcome as stored in the
+commit and compares both.
 
-## What Inkan will not do
+Because each outcome is its own file, two branches never touch the same
+file and an ordinary merge brings them together. It also keeps review cheap
+without a cache: an unfiltered `log` reads only as many files as it prints, and the bundled
+benchmark (`npm run bench`) seeds ten thousand closed outcomes and holds
+`log -n 3` under 50 ms, `log --grep` under 1 s, and `doctor` under 2 s.
 
-- It never runs tests, builds, or any other shell command. Whether the work
-  is actually correct is the repository's own job, checked by its own
-  tooling.
-- It never blocks or gates a commit. `check` reports facts about a commit
-  that already landed; nothing in Inkan runs before or during `git commit`.
-- Closed records are final. There is no stale state, no invalidated state,
-  and no notion that a closed outcome needs to be redone. Reviewing the log
-  is reading, not re-checking.
-- It keeps no sidecar files, no park file, no lock directory, no index, and
-  no environment variable to relocate storage. Everything lives under
-  `.inkan/` and is committed with the code.
-- It has no merge driver and no cross-lineage repair tool. One append-only
-  file per outcome means two branches never collide on the same file, so an
-  ordinary Git merge is enough.
-- It has no flag to force a new outcome open while one is already open.
-  Closing an open outcome explicitly, with a note, is the only path from one
-  outcome to the next.
-- It has no lane catalog, no lane switching, and no current-lane pointer. A
-  lane is a plain, optional filing tag, nothing more.
-- It ships no MCP server and no installers for other agent hosts in this
-  release; those are adapters, not the product.
-- It does not migrate or import an older log in this release; that is a
-  later milestone.
-- It never silently repairs a corrupt record. A file that violates the event
-  rules is reported as corrupt, not fixed.
+## Status
+
+Inkan 0.1.0 is the first release, rebuilt from scratch as the successor to
+DriftSeal. Deliberately not in this release: an importer for DriftSeal
+history, an MCP server, and installers for specific agent hosts. Those are
+adapters and can follow without changing the record format. Lanes exist
+only as an optional filing tag on `begin` and a filter on `log`.
+
+## License
+
+MIT
