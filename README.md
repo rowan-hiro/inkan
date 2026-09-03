@@ -101,6 +101,11 @@ what an agent reports instead of stretching the definition of done.
 git commit -m "$(printf 'feat: account recovery\n\nInkan-Outcome: 2026-09-03-0621-82qz\n')"
 ```
 
+The trailer goes in the last paragraph of the message, next to any other
+trailers such as `Co-Authored-By`, with no blank line between them. Git
+reads trailers only from that final paragraph; a trailer set apart by a
+blank line is silently not a trailer.
+
 **6. Ask, any time later, whether the commit kept its promise.**
 
 ```sh
@@ -190,9 +195,10 @@ These are the product, not its limitations.
 
 `inkan init` writes a generated protocol block into `AGENTS.md`, the file
 coding agents already read. Five rules: seal before durable changes; the
-seal is a fact; close with dispositions, then commit with the trailer;
-re-anchor with `inkan status` after context loss; closed outcomes are final.
-The block is upgraded in place on new protocol versions, and `init` refuses
+seal is a fact; close with dispositions, then commit with the trailer in the
+last paragraph of the message; re-anchor with `inkan status` after context
+loss; closed outcomes are final. The block carries a protocol number. `init`
+upgrades a block it generated under an earlier protocol in place and refuses
 to overwrite a block that was edited by hand, so the policy lives in exactly
 one place. `--lang <tag>` sets the language agents should write outcome
 prose in.

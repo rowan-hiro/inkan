@@ -38,3 +38,9 @@ The companion skill `use-inkan` only locates AGENTS.md, re-anchors, and points a
 * The language tag changes one comment line and one sentence
 
 ## Decision History
+
+### 2026-09-03T06:45:04.609Z, outcome 2026-09-03-0643-44gb
+
+Status: accepted -> accepted
+
+Protocol 2 (2026-09-03): step 3 now says the Inkan-Outcome trailer goes in the last paragraph of the commit message, next to any other trailers, with no blank line between them, because git reads trailers only from that final paragraph. Found while dogfooding: a blank line between the trailer and a Co-Authored-By line made git drop the trailer and check reported no trailer on a commit that had one in its text. init keeps the protocol 1 text verbatim and upgrades a protocol 1 block in place; a hand-edited block of either protocol is still refused. Decision unchanged.

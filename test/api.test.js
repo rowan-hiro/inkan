@@ -86,6 +86,24 @@ test('init --lang upgrades only the language parts of an unmodified block', () =
   assert.equal(api.init({ root, lang: 'fr' }).changed, false);
 });
 
+test('init upgrades a block generated under protocol 1 and still refuses hand edits', () => {
+  const root = tmpDir();
+  const agentsFile = path.join(root, 'AGENTS.md');
+  fs.writeFileSync(agentsFile, `# Agent instructions\n\n${api.protocolBlock('en', 1)}\n`);
+  assert.match(fs.readFileSync(agentsFile, 'utf8'), /<!-- inkan-protocol: 1 -->/);
+  const result = api.init({ root });
+  assert.equal(result.changed, true);
+  const agents = fs.readFileSync(agentsFile, 'utf8');
+  assert.match(agents, /<!-- inkan-protocol: 2 -->/);
+  assert.match(agents, /last paragraph of the message/);
+  assert.doesNotMatch(agents, /<!-- inkan-protocol: 1 -->/);
+  assert.equal(api.init({ root }).changed, false);
+  // A protocol 1 block with a hand edit is refused, not upgraded.
+  const edited = api.protocolBlock('en', 1).replace('Never report success', 'HAND EDITED');
+  fs.writeFileSync(agentsFile, `# Agent instructions\n\n${edited}\n`);
+  assert.throws(() => api.init({ root }), /edited by hand/);
+});
+
 // --- begin ----------------------------------------------------------------
 
 test('begin refuses outside an Inkan repository', () => {

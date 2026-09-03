@@ -454,7 +454,9 @@ const START_MARKER = '<!-- inkan -->';
 const END_MARKER = '<!-- /inkan -->';
 const DEFAULT_LANG = 'en';
 
-function protocolBlock(lang) {
+// Protocol 1, frozen verbatim so `init` can recognise a block it generated
+// earlier and upgrade it. Never edit; a protocol change is a new version.
+function protocolBlockV1(lang) {
   return `${START_MARKER}
 <!-- inkan-protocol: 1 -->
 <!-- inkan-lang: ${lang} -->
@@ -473,6 +475,40 @@ Decision records live in \`.inkan/decisions/\`. Their Context and Decision secti
 
 Outcome log: \`.inkan/outcomes/<id>.jsonl\`, one append-only file per outcome. Commit \`.inkan/\` with the code. Do not edit these files by hand.
 ${END_MARKER}`;
+}
+
+function protocolBlockV2(lang) {
+  return `${START_MARKER}
+<!-- inkan-protocol: 2 -->
+<!-- inkan-lang: ${lang} -->
+
+## Agent protocol: sealed outcomes
+
+This repository uses Inkan (\`inkan\`, alias \`ink\`). Inkan keeps a trustworthy record of what the work was meant to deliver and what was declared at close. It does not run tests and does not judge the result; the repository's own checks do that. Write outcome prose in ${lang}.
+
+1. **Seal before durable changes.** Before changing code, configuration, documentation, or dependencies, run \`inkan begin "<outcome>" --accept "<observable criterion>"\`. Repeat \`--accept\` per criterion. Add \`--decision <id>\` for each decision record this work is bound by. Add \`--lane <tag>\` only when the repository already files outcomes by lane.
+2. **The seal is a fact.** Deliver what it says. If circumstances change, do not reinterpret it: run \`inkan amend --reason "<what changed>"\` with the added or withdrawn criteria. The original text stays. Never question why the outcome was sealed the way it was at the time.
+3. **Close with dispositions, then commit.** Run \`inkan end --met <n>... [--unmet <n>...] --note "<what happened>"\`. Every criterion gets a disposition. Put the printed \`Inkan-Outcome: <id>\` trailer in the commit message that lands the work: in the last paragraph of the message, next to any other trailers, with no blank line between them, because git reads trailers only from that final paragraph. Never report success without closing the outcome.
+4. **Re-anchor after context loss.** Run \`inkan status\` and \`inkan log -n 3\`. The open outcome is the task; continue it. To stop it, close it with a note. Do not begin over it.
+5. **Closed outcomes are final.** Reviewing the log is reading, not re-checking. Never re-verify, re-attest, or re-close a closed outcome. If a past declaration now looks wrong, that is a new outcome with its own seal.
+
+Decision records live in \`.inkan/decisions/\`. Their Context and Decision sections record the scenario at the time and are never edited. To challenge one, run \`inkan decision update <id> --status <status> --reason "<what changed>"\` or add a new record that supersedes it.
+
+Outcome log: \`.inkan/outcomes/<id>.jsonl\`, one append-only file per outcome. Commit \`.inkan/\` with the code. Do not edit these files by hand.
+${END_MARKER}`;
+}
+
+const PROTOCOL_VERSION = 2;
+
+/**
+ * The managed block for `lang` at protocol `version`, current by default.
+ * Earlier versions stay available verbatim so `init` can tell a block it
+ * generated before from a hand edit (decision 0008).
+ */
+export function protocolBlock(lang, version = PROTOCOL_VERSION) {
+  if (version === 1) return protocolBlockV1(lang);
+  if (version === 2) return protocolBlockV2(lang);
+  throw new InkanError(`unknown protocol version ${version}`);
 }
 
 /** Blocks compare equal ignoring only the parts `--lang` is allowed to change. */
@@ -518,7 +554,14 @@ export function init({ root, lang }) {
   const generated = protocolBlock(resolvedLang);
 
   if (found.text === generated) return { root: dir, agentsFile, changed: false };
-  if (blockKey(found.text) === blockKey(generated)) {
+  // A block this tool generated under any protocol so far, differing at most
+  // in language, is upgraded in place. Anything else was edited by hand.
+  const foundKey = blockKey(found.text);
+  let known = false;
+  for (let v = 1; v <= PROTOCOL_VERSION; v += 1) {
+    if (foundKey === blockKey(protocolBlock(resolvedLang, v))) known = true;
+  }
+  if (known) {
     const content = existing.slice(0, found.start) + generated + existing.slice(found.end);
     fs.writeFileSync(agentsFile, content, 'utf8');
     return { root: dir, agentsFile, changed: true };
