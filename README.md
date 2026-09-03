@@ -330,6 +330,25 @@ changing the record format. The only host-specific convenience is
 `AGENTS.md` and `.agents/skills` as they are. Lanes exist only as an
 optional filing tag on `begin` and a filter on `log`.
 
+## Releasing
+
+Every push to `main` and every pull request runs the test suite on Node 22,
+24, and 26, the history benchmark, and a package smoke on Linux, macOS, and
+Windows that packs the tarball, installs it, and drives the installed
+`inkan` through a full outcome (`npm run test:package`).
+
+A release is a GitHub Release whose tag is `v` plus the version in
+`package.json`. Publishing the release runs the publish workflow, which
+checks that the tag and the version agree, runs the tests and the package
+smoke again, and publishes to npm with trusted publishing (OIDC). No npm
+token is stored anywhere. The one-time setup is on npmjs.com, in the
+package's settings: add a trusted publisher of type GitHub Actions with
+owner `rowan-hiro`, repository `inkan`, and workflow `publish.yml`. If
+npm does not let a trusted publisher be added to a package that has never
+been published, publish the first release by hand from a checkout of the
+tag with `npm publish --access public`; every release after that goes
+through the workflow.
+
 ## License
 
 MIT

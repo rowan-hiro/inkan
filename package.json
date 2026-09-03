@@ -12,6 +12,14 @@
   },
   "license": "MIT",
   "author": "Hiro <rowan_hiro@proton.me>",
+  "homepage": "https://github.com/rowan-hiro/inkan#readme",
+  "bugs": {
+    "url": "https://github.com/rowan-hiro/inkan/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rowan-hiro/inkan.git"
+  },
   "files": [
     "bin",
     "src",
@@ -21,7 +29,8 @@
   ],
   "scripts": {
     "test": "node --test test/",
-    "bench": "node bench/history.js"
+    "bench": "node bench/history.js",
+    "test:package": "node scripts/test-package.mjs"
   },
   "keywords": [
     "inkan",
