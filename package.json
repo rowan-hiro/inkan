@@ -1,0 +1,32 @@
+{
+  "name": "inkan",
+  "version": "0.1.0",
+  "description": "Seal the authoritative outcome; keep a trustworthy record of the process.",
+  "type": "module",
+  "bin": {
+    "inkan": "bin/inkan.js",
+    "ink": "bin/ink.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "author": "Hiro <rowan_hiro@proton.me>",
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "keywords": [
+    "inkan",
+    "agents",
+    "agentic-coding",
+    "outcome-log",
+    "decision-log",
+    "madr"
+  ]
+}
