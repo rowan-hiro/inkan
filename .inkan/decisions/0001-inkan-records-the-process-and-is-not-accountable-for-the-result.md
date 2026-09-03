@@ -64,3 +64,9 @@ the record.
 Status: accepted -> accepted
 
 Superseded in part by 0013: the consequence that closing over an open outcome is refused is withdrawn. Open outcomes coexist and nothing closes an outcome on another session's behalf. The boundary itself stands.
+
+### 2026-09-03T08:12:45.255Z, outcome 2026-09-03-0812-bb82
+
+Status: accepted -> accepted
+
+Two framings added by Hiro on 2026-09-03, after building Inkan with itself for a day. First, why the record lives in the repository at all: an assistant's project memory does not carry across agents and is awkward to keep in sync, so the repository has to hold the durable record, and reasoning like this belongs in these decisions rather than in any one agent's memory. Second, what the boundary does for the agent: because every claim is a recorded fact with a read-only check behind it, an agent does not have to defend itself by speculating or second-guessing the person; it runs the check and reads the result. This creates a matter-of-fact environment, which is friendlier to agents and prevents overthinking. Decision unchanged.
