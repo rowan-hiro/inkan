@@ -39,3 +39,9 @@ At `end`, before the end line is written, Inkan records `tree` with the temporar
 * The only child process in Inkan is git with fixed argument arrays
 
 ## Decision History
+
+### 2026-09-03T06:41:24.531Z, outcome 2026-09-03-0641-jdhz
+
+Status: accepted -> accepted
+
+Framing added after the README rewrite, in Hiro's words: Inkan and git are two systems that trust each other, not two systems that question each other. Git is trusted for what landed; the tree hash and the trailer are its facts. Inkan is trusted for what was declared; the seal and the dispositions are its facts. check places the two side by side and re-derives neither. DriftSeal became a loop because it did not trust git for what landed and re-ran the work to find out, so git could not trust it either. Decision unchanged.
