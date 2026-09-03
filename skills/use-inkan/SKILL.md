@@ -23,9 +23,11 @@ inkan status
 inkan log -n 3
 ```
 
-The open outcome these report is the task at hand; continue it exactly as
-`AGENTS.md` directs. A closed outcome is final: it is never re-checked or
-re-closed, no matter how the work looks now.
+An open outcome that is the work you were asked to do is the task at hand;
+continue it exactly as `AGENTS.md` directs. An open outcome that is not your
+work belongs to another session: leave it alone, as `AGENTS.md` directs. A
+closed outcome is final: it is never re-checked or re-closed, no matter how
+the work looks now.
 
 For command syntax, run:
 

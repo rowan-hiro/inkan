@@ -86,22 +86,26 @@ test('init --lang upgrades only the language parts of an unmodified block', () =
   assert.equal(api.init({ root, lang: 'fr' }).changed, false);
 });
 
-test('init upgrades a block generated under protocol 1 and still refuses hand edits', () => {
-  const root = tmpDir();
-  const agentsFile = path.join(root, 'AGENTS.md');
-  fs.writeFileSync(agentsFile, `# Agent instructions\n\n${api.protocolBlock('en', 1)}\n`);
-  assert.match(fs.readFileSync(agentsFile, 'utf8'), /<!-- inkan-protocol: 1 -->/);
-  const result = api.init({ root });
-  assert.equal(result.changed, true);
-  const agents = fs.readFileSync(agentsFile, 'utf8');
-  assert.match(agents, /<!-- inkan-protocol: 2 -->/);
-  assert.match(agents, /last paragraph of the message/);
-  assert.doesNotMatch(agents, /<!-- inkan-protocol: 1 -->/);
-  assert.equal(api.init({ root }).changed, false);
-  // A protocol 1 block with a hand edit is refused, not upgraded.
-  const edited = api.protocolBlock('en', 1).replace('Never report success', 'HAND EDITED');
-  fs.writeFileSync(agentsFile, `# Agent instructions\n\n${edited}\n`);
-  assert.throws(() => api.init({ root }), /edited by hand/);
+test('init upgrades a block generated under an earlier protocol and still refuses hand edits', () => {
+  for (const version of [1, 2]) {
+    const root = tmpDir();
+    const agentsFile = path.join(root, 'AGENTS.md');
+    const marker = new RegExp(`<!-- inkan-protocol: ${version} -->`);
+    fs.writeFileSync(agentsFile, `# Agent instructions\n\n${api.protocolBlock('en', version)}\n`);
+    assert.match(fs.readFileSync(agentsFile, 'utf8'), marker);
+    const result = api.init({ root });
+    assert.equal(result.changed, true);
+    const agents = fs.readFileSync(agentsFile, 'utf8');
+    assert.match(agents, /<!-- inkan-protocol: 3 -->/);
+    assert.match(agents, /last paragraph of the message/);
+    assert.match(agents, /belongs to another session/);
+    assert.doesNotMatch(agents, marker);
+    assert.equal(api.init({ root }).changed, false);
+    // An earlier block with a hand edit is refused, not upgraded.
+    const edited = api.protocolBlock('en', version).replace('Never report success', 'HAND EDITED');
+    fs.writeFileSync(agentsFile, `# Agent instructions\n\n${edited}\n`);
+    assert.throws(() => api.init({ root }), /edited by hand/);
+  }
 });
 
 // --- begin ----------------------------------------------------------------
@@ -132,10 +136,15 @@ test('begin without git records a null head', () => {
   assert.equal(result.head, null);
 });
 
-test('begin refuses while an outcome is open', () => {
+test('begin allows another open outcome and names it without touching it', () => {
   const root = repo();
-  api.begin({ root, outcome: 'first', accept: ['a'] });
-  assert.throws(() => api.begin({ root, outcome: 'second', accept: ['b'] }), /already open/);
+  const first = api.begin({ root, outcome: 'first', accept: ['a'] });
+  const second = api.begin({ root, outcome: 'second', accept: ['b'] });
+  assert.notEqual(second.id, first.id);
+  assert.deepEqual(second.openAlongside, [{ id: first.id, outcome: 'first' }]);
+  const open = api.status({ root }).open.map((r) => r.id).sort();
+  assert.deepEqual(open, [first.id, second.id].sort());
+  assert.equal(api.log({ root, id: first.id }).record.closed, false);
 });
 
 test('begin validates decision id format', () => {
@@ -160,7 +169,7 @@ test('amend refuses an ambiguous target and accepts an explicit id', () => {
   const root = repo();
   const a = api.begin({ root, outcome: 'a', accept: ['x'] });
   // Simulate a merge of two branches that each began an outcome: fabricate a
-  // second open outcome file directly, bypassing begin's own open check.
+  // second open outcome file directly so its id is fixed.
   const bId = '2026-01-01-zzzz';
   store.createOutcomeFile(root, bId, {
     v: 1,

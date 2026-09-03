@@ -36,7 +36,7 @@ to grow beyond them.
 |---|---|
 | Is the stored outcome still what was sealed? | One append-only file per outcome. A contract hash over the sealed text, its criteria, and every amendment. `inkan status` prints the seal verbatim with its hash. |
 | Is what got committed the sealed outcome? | Closing records the hash of the working tree. The landing commit carries an `Inkan-Outcome: <id>` trailer. `inkan check <commit>` compares trailer, recorded hash, and recorded tree against the commit itself. |
-| Was the outcome swapped mid-way without authorization? | The headline never changes. Criteria change only through `inkan amend --reason`. Closing requires a disposition for every live criterion. A new outcome cannot begin while one is open, and there is no force flag. |
+| Was the outcome swapped mid-way without authorization? | The headline never changes. Criteria change only through `inkan amend --reason`. Closing requires a disposition for every live criterion. An outcome that was never closed stays visibly open; nothing closes it on anyone's behalf. |
 
 ## Quick start
 
@@ -161,9 +161,11 @@ inkan log -n 3
     Rate-limit recovery requests per account
 ```
 
-The open outcome is the task at hand. Continue it, or close it with a note.
-Never begin over it. `log` prints one line per outcome, newest first, so
-re-anchoring costs a few lines of context, not a re-read of the history:
+An open outcome that is your work is the task at hand: continue it, or close
+it with a note. One that is not your work belongs to another session: leave
+it alone and begin your own beside it. `log` prints one line per outcome,
+newest first, so re-anchoring costs a few lines of context, not a re-read of
+the history:
 
 ```
 2026-09-03-0621-q51x  completed  Ship account recovery, second pass  (1/1 met)
@@ -184,6 +186,12 @@ These are the product, not its limitations.
   notion that a closed outcome needs to be redone. Reviewing the log is
   reading, not re-checking. If a past declaration now looks wrong, that is a
   new outcome with its own seal.
+- **It never closes an outcome on anyone's behalf.** Several outcomes can be
+  open at once, one per session or branch. `begin` names the others and
+  leaves them alone. An outcome that was never closed is an honest record of
+  exactly that; why it stayed open is a question for a person to investigate,
+  not a judgment for an agent to make. Closing for the sake of closing would
+  only fill the log with junk records.
 - **The scenario is never rewritten.** An agent may challenge a decision when
   circumstances change, by amendment or by a new decision record. It never
   edits the text that records what was known and decided at the time.
@@ -197,7 +205,8 @@ These are the product, not its limitations.
 coding agents already read. Five rules: seal before durable changes; the
 seal is a fact; close with dispositions, then commit with the trailer in the
 last paragraph of the message; re-anchor with `inkan status` after context
-loss; closed outcomes are final. The block carries a protocol number. `init`
+loss and leave other sessions' outcomes alone; closed outcomes are final.
+The block carries a protocol number. `init`
 upgrades a block it generated under an earlier protocol in place and refuses
 to overwrite a block that was edited by hand, so the policy lives in exactly
 one place. `--lang <tag>` sets the language agents should write outcome
@@ -258,7 +267,7 @@ gate in the loop.
 | Command | Effect | Refuses when |
 |---|---|---|
 | `inkan init [--lang <tag>]` | Writes or upgrades the managed block in `AGENTS.md`; creates `.inkan/`. | The block was hand-edited. |
-| `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]` | Seals a new outcome; prints its id. | Another outcome is open. The message names it and says to close it with a note. |
+| `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]` | Seals a new outcome; prints its id. Any other open outcome is named in a notice on stderr and left untouched. | Never. |
 | `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [<id>]` | Appends an amendment; prints the new contract hash. | No reason. No open outcome. Ambiguous open outcome without `<id>`. |
 | `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | Records dispositions and closes. Status is derived: all met is `completed`, any unmet is `partial`. Prints the commit trailer line. | A live criterion has no disposition, unless closing with `-s abandoned`. No note. |
 | `inkan status` | Prints every open outcome verbatim: sealed time, hash, lane, criteria with indexes, amendments with reasons, linked decisions. | Never. |

@@ -58,3 +58,9 @@ the record.
   only path from one outcome to the next is a reasoned close.
 
 ## Decision History
+
+### 2026-09-03T06:52:53.927Z, outcome 2026-09-03-0652-5g61
+
+Status: accepted -> accepted
+
+Superseded in part by 0013: the consequence that closing over an open outcome is refused is withdrawn. Open outcomes coexist and nothing closes an outcome on another session's behalf. The boundary itself stands.

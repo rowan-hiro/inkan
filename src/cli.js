@@ -245,6 +245,11 @@ function run(argv) {
         const { values, positionals } = parseArgs({ args: rest, options: opts, allowPositionals: true });
         if (positionals.length !== 1) throw new InkanError('usage: inkan begin "<outcome>" [--accept <text>]...');
         const result = api.begin({ root, outcome: positionals[0], ...values });
+        // Other open outcomes belong to whoever began them; they are named,
+        // never touched (decision 0013).
+        for (const other of result.openAlongside) {
+          process.stderr.write(`inkan: also open: ${other.id}  ${other.outcome}\n`);
+        }
         console.log(result.id);
         break;
       }

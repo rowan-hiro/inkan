@@ -208,3 +208,19 @@ test('decision add/show/list/update through the CLI, and amend accepts a legacy 
   const amend = run(INKAN, ['amend', legacyId, '--reason', 'why'], dir);
   assert.equal(amend.status, 0);
 });
+
+test('begin beside another open outcome prints the new id on stdout and names the other on stderr', () => {
+  const dir = tmpDir();
+  assert.equal(run(INKAN, ['init'], dir).status, 0);
+  const first = run(INKAN, ['begin', 'First task', '--accept', 'a'], dir);
+  assert.equal(first.stderr, '');
+  const second = run(INKAN, ['begin', 'Second task', '--accept', 'b'], dir);
+  assert.equal(second.status, 0);
+  assert.match(second.stdout.trim(), /^\d{4}-\d{2}-\d{2}-\d{4}-[0-9a-z]{4}$/);
+  assert.notEqual(second.stdout.trim(), first.stdout.trim());
+  assert.match(second.stderr, new RegExp(`also open: ${first.stdout.trim()}  First task`));
+  // The first outcome is untouched: still open, still the first line of status.
+  const status = run(INKAN, ['status'], dir);
+  assert.match(status.stdout, new RegExp(`\\[${first.stdout.trim()}\\] open`));
+  assert.match(status.stdout, new RegExp(`\\[${second.stdout.trim()}\\] open`));
+});

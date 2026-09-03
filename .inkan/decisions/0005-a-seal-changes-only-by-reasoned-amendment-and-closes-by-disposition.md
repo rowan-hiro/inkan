@@ -44,3 +44,9 @@ A closed outcome cannot be amended, re-closed, or reopened; new work is a new ou
 * More than one open outcome can arise only from a merge and is resolved by naming an id or closing with a note
 
 ## Decision History
+
+### 2026-09-03T06:52:53.892Z, outcome 2026-09-03-0652-5g61
+
+Status: accepted -> accepted
+
+Superseded in part by 0013: begin no longer refuses while another outcome is open, and an explicit close is no longer the only path from one outcome to the next. Everything else in this record stands.
