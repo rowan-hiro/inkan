@@ -58,7 +58,7 @@ export function treeMatchesCommit(cwd, recordedTree, commit) {
 
 /**
  * The tree hash of the working tree, `.inkan/outcomes` excluded, via the
- * temporary-index recipe from DESIGN.md. Returns null outside a worktree.
+ * temporary-index recipe from decision 0006. Returns null outside a worktree.
  * The temporary index file is always cleaned up.
  */
 export function treeHash(cwd) {

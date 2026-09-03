@@ -1,4 +1,4 @@
-// Synthetic benchmark for "Reviewing history at scale" (DESIGN.md). Seeds a
+// Synthetic benchmark for the review-cost targets in decision 0009. Seeds a
 // temporary repository with many closed outcomes, bypassing begin/end
 // validation so the timings below measure only file I/O and folding on
 // reads; by default seeding itself skips fsync too (see `seed`'s `durable`

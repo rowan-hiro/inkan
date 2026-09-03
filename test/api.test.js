@@ -287,7 +287,7 @@ test('status lists open outcomes with a live contract hash', () => {
 });
 
 test('log sorts by id descending and respects -n', () => {
-  // The id suffix is random (DESIGN.md), so same-day ids are not in creation
+  // The id suffix is random (decision 0002), so same-day ids are not in creation
   // order; "newest first" is precise to the day and, within a day, to the id
   // sort order. This checks that actual, documented ordering.
   const root = repo();

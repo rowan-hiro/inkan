@@ -275,7 +275,7 @@ export function log({ root, n, lane, since, grep, status, decision, id }) {
 
   // Only these filters require reading past the newest few files; the plain
   // `-n` case sorts the directory listing and folds nothing else. See
-  // DESIGN.md, "Reviewing history at scale". listOutcomeIds already sorts
+  // decision 0009. listOutcomeIds already sorts
   // ascending by store.compareOutcomeIds, so reversing it is enough.
   const filtered = [lane, since, grep, status, decision].some((v) => v !== undefined);
   if (!filtered) {
@@ -303,7 +303,7 @@ export function log({ root, n, lane, since, grep, status, decision, id }) {
 
 const OUTCOME_FILE_PREFIX = '.inkan/outcomes/';
 
-/** The four facts for one `Inkan-Outcome` trailer value, per DESIGN.md's "Tree hash" and `check` row. */
+/** The four facts for one `Inkan-Outcome` trailer value, per decision 0006. */
 function checkTrailer(root, sha, id) {
   const filePath = `${OUTCOME_FILE_PREFIX}${id}.jsonl`;
   const raw = git.showFile(root, sha, filePath);

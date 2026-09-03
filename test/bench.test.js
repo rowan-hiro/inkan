@@ -6,7 +6,7 @@ import path from 'node:path';
 import * as api from '../src/api.js';
 import { seed, runChecks } from '../bench/history.js';
 
-// Enforces DESIGN.md's "Reviewing history at scale" targets in the suite
+// Enforces the review-cost targets from decision 0009 in the suite
 // itself, at a smaller scale than bench/history.js so it stays fast to run.
 test('log -n 3, log --grep, and doctor stay under their targets at 2,000 outcomes', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'inkan-bench-test-'));

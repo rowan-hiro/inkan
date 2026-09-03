@@ -136,6 +136,10 @@ dated history entry underneath instead of rewriting the original text, or a
 new record is written that supersedes the old one. An outcome can name the
 decisions it is bound by with `--decision <id>` on `begin` or `amend`.
 
+The design of Inkan itself is recorded there, from the boundary in `0001`
+onward, so there is no separate design document; `inkan decision list`
+prints the index.
+
 ## Companion skill
 
 `skills/use-inkan/SKILL.md` is a companion for coding agents that support

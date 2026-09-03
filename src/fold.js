@@ -43,7 +43,7 @@ function positiveInteger(value) {
 
 /**
  * Fold one outcome's events into a plain record. `file` is used only to
- * label errors. Throws on any violation of the rules in DESIGN.md: `begin`
+ * label errors. Throws on any violation of the rules in decision 0005: `begin`
  * first and unique; `amend`/`end` only while open; exactly one `end`;
  * `completed` requires every live criterion met; `partial` requires every
  * live criterion to have a disposition and at least one unmet; `abandoned`
