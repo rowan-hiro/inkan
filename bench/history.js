@@ -1,9 +1,11 @@
 // Synthetic benchmark for "Reviewing history at scale" (DESIGN.md). Seeds a
-// temporary repository with many closed outcomes written directly through
-// src/store.js, bypassing begin/end validation so the timings below measure
-// only file I/O and folding. `seed` and `runChecks` are exported so the
-// in-suite benchmark (test/bench.test.js) can run the same thing at a
-// smaller scale. Not part of the package `files`; run as `node bench/history.js`.
+// temporary repository with many closed outcomes, bypassing begin/end
+// validation so the timings below measure only file I/O and folding on
+// reads; by default seeding itself skips fsync too (see `seed`'s `durable`
+// option), since nothing here is meant to survive the process. `seed` and
+// `runChecks` are exported so the in-suite benchmark (test/bench.test.js)
+// can run the same thing at a smaller scale. Not part of the package
+// `files`; run as `node bench/history.js`.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -23,9 +25,22 @@ function randomSuffix() {
   return s;
 }
 
+/** Writes a whole outcome file's events in one plain, unfsynced write. Only
+ * for seeding throwaway benchmark repositories: it skips the durability
+ * `src/store.js` gives real outcome files, which is exactly the cost this
+ * fast path exists to avoid. */
+function writeOutcomeFast(root, id, events) {
+  const content = events.map((e) => `${JSON.stringify(e)}\n`).join('');
+  fs.writeFileSync(store.outcomeFile(root, id), content, 'utf8');
+}
+
 /** Seeds `root` with `count` closed outcomes, spread across two and a half
- * years, a few lanes, and a few amendments. Writes only through src/store.js. */
-export function seed(root, count) {
+ * years, a few lanes, and a few amendments. `durable` (default false) picks
+ * between two ways to write each outcome file: fsynced appends through
+ * src/store.js (what a real `begin`/`amend`/`end` does), or one plain write
+ * with no fsync at all, which suffices for a benchmark of reads and is far
+ * faster to seed. */
+export function seed(root, count, { durable = false } = {}) {
   fs.mkdirSync(store.outcomesDir(root), { recursive: true });
   fs.mkdirSync(store.decisionsDir(root), { recursive: true });
   const start = Date.UTC(2023, 0, 1);
@@ -39,7 +54,7 @@ export function seed(root, count) {
     const criteria = [{ text: `criterion a for ${i}`, withdrawn: false }, { text: `criterion b for ${i}`, withdrawn: false }];
     const amendments = [];
 
-    store.createOutcomeFile(root, id, {
+    const beginEvent = {
       v: 1,
       type: 'begin',
       id,
@@ -49,13 +64,14 @@ export function seed(root, count) {
       decisions: [],
       lane,
       head: null,
-    });
+    };
 
+    let amendEvent = null;
     if (i % 11 === 0) {
       const addition = `follow-up criterion for ${i}`;
       amendments.push({ reason: `scope adjusted for ${i}`, addition });
       criteria.push({ text: addition, withdrawn: false });
-      store.appendEvent(root, id, {
+      amendEvent = {
         v: 1,
         type: 'amend',
         id,
@@ -66,11 +82,11 @@ export function seed(root, count) {
         withdraw: [],
         decisions: [],
         head: null,
-      });
+      };
     }
 
     const contractHash = computeContractHash({ outcome, criteria, decisions: [], amendments });
-    store.appendEvent(root, id, {
+    const endEvent = {
       v: 1,
       type: 'end',
       id,
@@ -81,7 +97,15 @@ export function seed(root, count) {
       contractHash,
       tree: null,
       head: null,
-    });
+    };
+
+    if (durable) {
+      store.createOutcomeFile(root, id, beginEvent);
+      if (amendEvent) store.appendEvent(root, id, amendEvent);
+      store.appendEvent(root, id, endEvent);
+    } else {
+      writeOutcomeFast(root, id, amendEvent ? [beginEvent, amendEvent, endEvent] : [beginEvent, endEvent]);
+    }
   }
 }
 

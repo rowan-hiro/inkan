@@ -97,6 +97,7 @@ that violates these is reported as corrupt and never silently repaired.
 | `inkan decision add "<title>" --context ... --decision ... [--driver]... [--option]... [--consequence]... [-s status]` | Writes a numbered MADR file. | Missing required sections. |
 | `inkan decision update <id> --status <status> --reason <text>` | Appends a dated history entry to the MADR. Names the open outcome when there is one. Never edits Context or Decision sections. | Unknown id. |
 | `inkan decision list [-s status]` / `show <id>` | Read-only. | Never. |
+| `inkan skill install --target <dir>` | Copies `skills/use-inkan/` to `<dir>/use-inkan/`; prints the destination. | The destination exists and differs from the bundled skill. |
 
 `ink` accepts exactly the same arguments.
 
@@ -123,11 +124,11 @@ costs matter and they are different.
 Machine cost. The old single-file log had to be folded end to end to find
 the last three records, which is why it grew a SQLite index. Per-outcome
 files remove that need: ids sort chronologically to the minute, so `log -n
-3` sorts the directory listing and reads three files. Only `--grep`,
-`--since`, and `--lane` read more, and at ten thousand outcomes that is
-about ten thousand small files, on the order of thirty thousand lines and
-under ten megabytes, which folds in well under a second on local disk. Git
-handles directories of that size routinely.
+3` sorts the directory listing and reads three files. Any filter
+(`--lane`, `--since`, `--grep`, `--status`, `--decision`) reads more, and at
+ten thousand outcomes that is about ten thousand small files, on the order
+of thirty thousand lines and under ten megabytes, which folds in well under
+a second on local disk. Git handles directories of that size routinely.
 
 Agent cost. An agent cannot read a thousand records into context, so the
 tool must make the cheap view the default. `log` prints one line per outcome
@@ -183,9 +184,10 @@ consistent
 ```
 
 Each of the three fact lines can instead read `outcome: missing from
-commit`, `outcome: present, open`, `hash: does not match refold`, or `tree:
-differs from commit tree`; a `tree: not recorded` line means the outcome was
-closed outside a worktree, which is not itself a mismatch. Whichever fact
+commit`, `outcome: present, open`, `outcome: present, unreadable (<parse
+error>)`, `hash: does not match refold`, or `tree: differs from commit
+tree`; a `tree: not recorded` line means the outcome was closed outside a
+worktree, which is not itself a mismatch. Whichever fact
 fails is the only line printed for it, the summary reads `mismatch` instead
 of `consistent`, and the only further line it may print is `a mismatch is a
 fact about this commit; it is recorded, not repaired`. A commit with no

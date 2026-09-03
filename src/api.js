@@ -5,6 +5,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as store from './store.js';
 import { fold, computeContractHash } from './fold.js';
 import * as git from './git.js';
@@ -16,6 +17,9 @@ export class InkanError extends Error {
     this.name = 'InkanError';
   }
 }
+
+// Bundled skill directory, whether running from source or an installed package.
+const SKILL_SOURCE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'use-inkan');
 
 const DECISION_ID_RE = /^\d{4}$/;
 const LANG_RE = /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/;
@@ -233,7 +237,7 @@ export function end({ root, id, met = [], unmet = [], status, note }) {
 export function status({ root }) {
   const resolvedRoot = resolveRoot(root);
   const open = openRecords(resolvedRoot)
-    .sort((a, b) => (a.id < b.id ? -1 : 1))
+    .sort((a, b) => store.compareOutcomeIds(a.id, b.id))
     .map((r) => ({ ...r, decisionLinks: resolveDecisionLinks(resolvedRoot, r.decisions) }));
   return { open };
 }
@@ -271,10 +275,11 @@ export function log({ root, n, lane, since, grep, status, decision, id }) {
 
   // Only these filters require reading past the newest few files; the plain
   // `-n` case sorts the directory listing and folds nothing else. See
-  // DESIGN.md, "Reviewing history at scale".
+  // DESIGN.md, "Reviewing history at scale". listOutcomeIds already sorts
+  // ascending by store.compareOutcomeIds, so reversing it is enough.
   const filtered = [lane, since, grep, status, decision].some((v) => v !== undefined);
   if (!filtered) {
-    const ids = store.listOutcomeIds(resolvedRoot).sort().reverse().slice(0, limit);
+    const ids = store.listOutcomeIds(resolvedRoot).reverse().slice(0, limit);
     return { records: ids.map((rid) => loadRecord(resolvedRoot, rid)) };
   }
 
@@ -285,7 +290,7 @@ export function log({ root, n, lane, since, grep, status, decision, id }) {
   const grepRe = grep !== undefined ? new RegExp(grep, 'i') : null;
   const decisionId = decision !== undefined ? normalizeDecisionFilter(decision) : null;
 
-  let records = store.listOutcomeIds(resolvedRoot).sort().reverse().map((rid) => loadRecord(resolvedRoot, rid));
+  let records = store.listOutcomeIds(resolvedRoot).reverse().map((rid) => loadRecord(resolvedRoot, rid));
   if (lane) records = records.filter((r) => r.lane === lane);
   if (sinceMs !== null) records = records.filter((r) => Date.parse(r.sealedAt) >= sinceMs);
   if (status !== undefined) records = records.filter((r) => (r.closed ? r.status : 'open') === status);
@@ -305,13 +310,13 @@ function checkTrailer(root, sha, id) {
   if (raw === null) return { id, lines: ['outcome: missing from commit'], ok: false };
 
   let events;
-  let endEvent;
   try {
     events = store.parseOutcomeEvents(raw, `${sha}:${filePath}`);
-    endEvent = events.find((e) => e && e.type === 'end');
-  } catch {
-    return { id, lines: ['outcome: present, open'], ok: false };
+  } catch (err) {
+    const firstLine = String(err.message).split('\n')[0];
+    return { id, lines: [`outcome: present, unreadable (${firstLine})`], ok: false };
   }
+  const endEvent = events.find((e) => e && e.type === 'end');
   if (!endEvent) return { id, lines: ['outcome: present, open'], ok: false };
 
   let hashOk = true;
@@ -519,4 +524,42 @@ export function init({ root, lang }) {
     return { root: dir, agentsFile, changed: true };
   }
   throw new InkanError(`${AGENTS_FILENAME} inkan block was edited by hand; refusing to overwrite it`);
+}
+
+// --- skill install ----------------------------------------------------------
+
+/** Every file under `dir`, as paths relative to `dir`, sorted. */
+function listFilesRecursive(dir) {
+  const out = [];
+  for (const name of fs.readdirSync(dir)) {
+    const full = path.join(dir, name);
+    if (fs.statSync(full).isDirectory()) out.push(...listFilesRecursive(full).map((f) => path.join(name, f)));
+    else out.push(name);
+  }
+  return out.sort();
+}
+
+/** Whether `a` and `b` are directories with byte-identical file trees. */
+function sameTree(a, b) {
+  if (!fs.existsSync(a) || !fs.existsSync(b)) return false;
+  const filesA = listFilesRecursive(a);
+  const filesB = listFilesRecursive(b);
+  if (filesA.length !== filesB.length || filesA.some((f, i) => f !== filesB[i])) return false;
+  return filesA.every((rel) => fs.readFileSync(path.join(a, rel)).equals(fs.readFileSync(path.join(b, rel))));
+}
+
+/** Copies the bundled `skills/use-inkan/` to `<target>/use-inkan/`; refuses,
+ * with no overwrite flag, when the destination exists and differs. */
+export function skillInstall({ target }) {
+  if (!target || !target.trim()) throw new InkanError('skill install requires --target <dir>');
+  const dest = path.join(path.resolve(target), 'use-inkan');
+  if (fs.existsSync(dest)) {
+    if (!sameTree(SKILL_SOURCE, dest)) {
+      throw new InkanError(`${dest} already exists and differs from the bundled skill; remove it by hand first`);
+    }
+    return { dest };
+  }
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.cpSync(SKILL_SOURCE, dest, { recursive: true });
+  return { dest };
 }

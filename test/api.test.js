@@ -482,3 +482,24 @@ test('a legacy YYYY-MM-DD-xxxx outcome id still resolves', () => {
   });
   assert.equal(api.log({ root, id: legacyId }).record.outcome, 'legacy');
 });
+
+// --- skill install ----------------------------------------------------------
+
+test('skill install copies the bundled skill and is idempotent', () => {
+  const target = tmpDir();
+  const dest = api.skillInstall({ target }).dest;
+  assert.equal(dest, path.join(target, 'use-inkan'));
+  assert.match(fs.readFileSync(path.join(dest, 'SKILL.md'), 'utf8'), /^---\nname: use-inkan/);
+  assert.doesNotThrow(() => api.skillInstall({ target }));
+});
+
+test('skill install refuses a destination that exists and differs, with no force flag', () => {
+  const target = tmpDir();
+  api.skillInstall({ target });
+  fs.appendFileSync(path.join(target, 'use-inkan', 'SKILL.md'), '\ntampered\n');
+  assert.throws(() => api.skillInstall({ target }), /already exists and differs/);
+});
+
+test('skill install requires --target', () => {
+  assert.throws(() => api.skillInstall({}), /requires --target/);
+});

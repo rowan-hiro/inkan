@@ -63,6 +63,16 @@ test('listOutcomeIds sorts and only counts .jsonl files', () => {
   assert.deepEqual(store.listOutcomeIds(root), ['2026-01-01-bbbb', '2026-01-02-aaaa']);
 });
 
+test('listOutcomeIds sorts a legacy id as though its missing HHMM segment were 0000', () => {
+  const root = tmpDir();
+  const dir = store.outcomesDir(root);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, '2026-09-03-0455-kk9j.jsonl'), '');
+  fs.writeFileSync(path.join(dir, '2026-09-03-33cx.jsonl'), '');
+  fs.writeFileSync(path.join(dir, '2026-09-03-72q6.jsonl'), '');
+  assert.deepEqual(store.listOutcomeIds(root), ['2026-09-03-33cx', '2026-09-03-72q6', '2026-09-03-0455-kk9j']);
+});
+
 test('listOutcomeIds on a repo with no outcomes dir yet', () => {
   const root = tmpDir();
   assert.deepEqual(store.listOutcomeIds(root), []);

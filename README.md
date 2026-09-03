@@ -119,6 +119,7 @@ problems; it never repairs or deletes anything either.
 | `inkan decision add "<title>" --context ... --decision ... [--driver]... [--option]... [--consequence]... [-s status]` | Writes a numbered MADR file. | Missing required sections. |
 | `inkan decision update <id> --status <status> --reason <text>` | Appends a dated history entry to the MADR. Names the open outcome when there is one. Never edits Context or Decision sections. | Unknown id. |
 | `inkan decision list [-s status]` / `show <id>` | Read-only. | Never. |
+| `inkan skill install --target <dir>` | Copies `skills/use-inkan/` to `<dir>/use-inkan/`; prints the destination. | The destination exists and differs from the bundled skill. |
 
 `ink` accepts exactly the same arguments.
 
@@ -134,6 +135,22 @@ what was actually known and decided. When circumstances change,
 dated history entry underneath instead of rewriting the original text, or a
 new record is written that supersedes the old one. An outcome can name the
 decisions it is bound by with `--decision <id>` on `begin` or `amend`.
+
+## Companion skill
+
+`skills/use-inkan/SKILL.md` is a companion for coding agents that support
+this style of skill file. It only points at the repository's `AGENTS.md`
+and helps an agent re-anchor after context loss; it does not restate or
+extend the protocol written there. Install it into an agent's skill
+directory with:
+
+```sh
+inkan skill install --target <dir>
+```
+
+This copies `skills/use-inkan/` to `<dir>/use-inkan/` and prints the
+destination. It refuses, with no overwrite flag, when the destination
+already exists and differs from the bundled skill.
 
 ## Storage
 

@@ -48,6 +48,8 @@ Commands:
       One line per record, ascending by id.
   decision update <id> --status <status> --reason <text> [--outcome <id>]
       Append a dated history entry and set the new status.
+  skill install --target <dir>
+      Copy the bundled use-inkan skill to <dir>/use-inkan; prints the path.
 
   help, --help, -h     show this help
   --version, -v        print the version
@@ -314,6 +316,13 @@ function run(argv) {
       }
       case 'decision': {
         runDecision(root, rest);
+        break;
+      }
+      case 'skill': {
+        const [sub, ...subRest] = rest;
+        if (sub !== 'install') throw new InkanError(`unknown skill subcommand "${sub}"`);
+        const { values } = parseArgs({ args: subRest, options: { target: { type: 'string' } } });
+        console.log(api.skillInstall({ target: values.target }).dest);
         break;
       }
       default:

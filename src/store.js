@@ -61,6 +61,19 @@ export function newOutcomeId(existingIds = []) {
   }
 }
 
+/** Sort key for an outcome id: a legacy `YYYY-MM-DD-xxxx` id (missing the
+ * `HHMM` segment `newOutcomeId` adds) sorts as though that segment were
+ * `0000`, interleaving it chronologically instead of always sorting last. */
+export function idSortKey(id) {
+  const parts = id.split('-');
+  return parts.length === 4 ? `${parts[0]}-${parts[1]}-${parts[2]}-0000-${parts[3]}` : id;
+}
+
+/** Ascending comparator for outcome ids, built on idSortKey. */
+export function compareOutcomeIds(a, b) {
+  return idSortKey(a) < idSortKey(b) ? -1 : idSortKey(a) > idSortKey(b) ? 1 : 0;
+}
+
 export function listOutcomeIds(root) {
   const dir = outcomesDir(root);
   if (!fs.existsSync(dir)) return [];
@@ -68,7 +81,7 @@ export function listOutcomeIds(root) {
     .readdirSync(dir)
     .filter((name) => name.endsWith('.jsonl'))
     .map((name) => name.slice(0, -'.jsonl'.length))
-    .sort();
+    .sort(compareOutcomeIds);
 }
 
 /** Parse one outcome file's raw text into events, `label` naming it in error messages. */

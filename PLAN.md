@@ -1,8 +1,8 @@
 # Inkan: implementation plan
 
-Status: approved direction, nothing implemented yet. Inkan (印鑑) is the
-successor to DriftSeal, rebuilt from scratch under a new name. Package
-`inkan`, commands `inkan` and the short alias `ink`.
+Status: M0 through M4 are implemented on `main`; M5 (import and release) is
+open. Inkan (印鑑) is the successor to DriftSeal, rebuilt from scratch under
+a new name. Package `inkan`, commands `inkan` and the short alias `ink`.
 
 ## Why a rewrite instead of a fix
 

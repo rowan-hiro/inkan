@@ -83,6 +83,18 @@ test('check reports an outcome that is still open', () => {
   assert.deepEqual(result.reports[0].lines, ['outcome: present, open']);
 });
 
+test('check reports a file that fails to parse as unreadable, not open', () => {
+  const root = repo();
+  const begun = api.begin({ root, outcome: 'x', accept: ['a'] });
+  fs.appendFileSync(outcomeFile(root, begun.id), 'not json\n');
+  commitAll(root, `feat: broken outcome file\n\n${trailer(begun.id)}`);
+
+  const result = api.check({ root, commit: 'HEAD' });
+  assert.equal(result.consistent, false);
+  assert.equal(result.reports[0].lines.length, 1);
+  assert.match(result.reports[0].lines[0], /^outcome: present, unreadable \(.*not valid JSON\)$/);
+});
+
 test('check reports a hash mismatch when a later commit tampers with committed criteria text', () => {
   const root = repo();
   const begun = api.begin({ root, outcome: 'x', accept: ['a'] });
