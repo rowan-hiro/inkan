@@ -9,6 +9,10 @@ declared when it closed. It then binds each landing commit to that record,
 so anyone, human or agent, can ask later whether the commit is faithful to
 the promise.
 
+It is also a working prototype of a larger idea: one record that follows an
+agent's work through its whole lifecycle, from fixed intent to audited
+commit, and is never rewritten along the way.
+
 ## The problem
 
 Long agent sessions lose the plot. Context gets compacted, a fresh session
@@ -218,6 +222,30 @@ closing it.
 Inkan's own design is recorded this way, from the boundary in `0001`
 onward. There is no separate design document; `inkan decision list` prints
 the index.
+
+## A prototype for the whole lifecycle
+
+Inkan is also a working prototype of something larger: managing an agent's
+work across its whole lifecycle, from the moment intent is fixed to the
+moment a commit is audited, with one record that every stage writes to and
+no stage rewrites.
+
+| Stage | What is recorded | Command |
+|---|---|---|
+| Intent | What will be delivered and how it will be judged | `begin` |
+| Change | How the intent moved, and why | `amend --reason` |
+| Constraint | The decisions the work is bound by | `decision add`, `--decision` |
+| Close | A disposition per criterion and a derived, truthful status | `end` |
+| Delivery | The commit that landed the work, bound to the seal | `Inkan-Outcome` trailer |
+| Audit | Whether the commit and the record still agree | `check`, `doctor` |
+| Resume | Where a fresh session picks up | `status`, `log` |
+
+Inkan is built this way itself. Every commit in its repository after the
+first carries an `Inkan-Outcome` trailer, each milestone was sealed and
+closed as an outcome, and its design decisions live in `.inkan/decisions/`.
+The record is deliberately small. What the prototype tests is whether a
+lifecycle can be managed by a log of facts alone, with no runner and no
+gate in the loop.
 
 ## Command reference
 
