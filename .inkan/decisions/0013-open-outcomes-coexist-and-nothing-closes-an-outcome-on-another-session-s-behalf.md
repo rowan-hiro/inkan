@@ -41,3 +41,9 @@ begin never refuses because another outcome is open. It prints the new id on std
 Status: accepted -> accepted
 
 Hiro added a second reason on 2026-09-03: a forced close also invites an agent to work only in order to close the outcome, and closing for the sake of closing fills the log with junk records. An outcome left open costs nothing; a false close costs the record its trust.
+
+### 2026-09-03T06:59:37.229Z, outcome 2026-09-03-0659-4y7h
+
+Status: accepted -> accepted
+
+Hiro added on 2026-09-03: an agent that meets an open outcome that is not its work does not judge it, but stops, tells the person it is there, and asks whether the work should run in its own git worktree. Protocol 4 carries this: rule 1 runs status before begin and defers to rule 4; rule 4 states the reminder.

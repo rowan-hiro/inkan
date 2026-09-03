@@ -87,7 +87,7 @@ test('init --lang upgrades only the language parts of an unmodified block', () =
 });
 
 test('init upgrades a block generated under an earlier protocol and still refuses hand edits', () => {
-  for (const version of [1, 2]) {
+  for (const version of [1, 2, 3]) {
     const root = tmpDir();
     const agentsFile = path.join(root, 'AGENTS.md');
     const marker = new RegExp(`<!-- inkan-protocol: ${version} -->`);
@@ -96,9 +96,10 @@ test('init upgrades a block generated under an earlier protocol and still refuse
     const result = api.init({ root });
     assert.equal(result.changed, true);
     const agents = fs.readFileSync(agentsFile, 'utf8');
-    assert.match(agents, /<!-- inkan-protocol: 3 -->/);
+    assert.match(agents, /<!-- inkan-protocol: 4 -->/);
     assert.match(agents, /last paragraph of the message/);
     assert.match(agents, /belongs to another session/);
+    assert.match(agents, /own git worktree/);
     assert.doesNotMatch(agents, marker);
     assert.equal(api.init({ root }).changed, false);
     // An earlier block with a hand edit is refused, not upgraded.

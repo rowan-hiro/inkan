@@ -163,9 +163,10 @@ inkan log -n 3
 
 An open outcome that is your work is the task at hand: continue it, or close
 it with a note. One that is not your work belongs to another session: leave
-it alone and begin your own beside it. `log` prints one line per outcome,
-newest first, so re-anchoring costs a few lines of context, not a re-read of
-the history:
+it alone, tell the person it is there, and ask whether your work should run
+in its own git worktree before beginning beside it. `log` prints one line
+per outcome, newest first, so re-anchoring costs a few lines of context, not
+a re-read of the history:
 
 ```
 2026-09-03-0621-q51x  completed  Ship account recovery, second pass  (1/1 met)
