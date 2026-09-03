@@ -38,3 +38,15 @@ Storage lives under `.inkan/`, the commit trailer is `Inkan-Outcome`, the AGENTS
 * Nothing answers to the DriftSeal names or reads DriftSeal storage
 
 ## Decision History
+
+### 2026-09-03T07:44:26.752Z, outcome 2026-09-03-0744-bqs8
+
+Status: accepted -> accepted
+
+npm refused the unscoped name on 2026-09-03: E403, package name too similar to existing packages ink and nan. The package is published as @hiro/inkan under Hiro's npm org. The product name, the inkan and ink commands, the .inkan/ directory, and the Inkan-Outcome trailer are unchanged.
+
+### 2026-09-03T07:57:22.735Z, outcome 2026-09-03-0757-v9t1
+
+Status: accepted -> accepted
+
+Scope changed to @rowan-hiro/inkan on 2026-09-03, matching the GitHub owner rowan-hiro. Everything else in the previous entry stands.

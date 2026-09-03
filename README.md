@@ -47,7 +47,7 @@ to grow beyond them.
 Requires Node.js 22 or newer and git.
 
 ```sh
-npm install --global inkan
+npm install --global @rowan-hiro/inkan
 ```
 
 This installs `inkan` and its alias `ink`. They accept identical arguments.

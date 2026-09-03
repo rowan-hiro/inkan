@@ -31,7 +31,7 @@ Inkan 是一款小巧、零依赖的 CLI，专为让 coding agent 真正参与�
 需要 Node.js 22 或更高版本，以及 git。
 
 ```sh
-npm install --global inkan
+npm install --global @rowan-hiro/inkan
 ```
 
 这会安装 `inkan` 及其别名 `ink`，两者接受完全相同的参数。

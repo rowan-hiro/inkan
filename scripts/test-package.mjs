@@ -60,7 +60,7 @@ try {
   const tarball = path.join(packDirectory, packed[0].filename);
   runNpm(['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], { cwd: consumer });
 
-  const installed = path.join(consumer, 'node_modules', 'inkan');
+  const installed = path.join(consumer, 'node_modules', '@rowan-hiro', 'inkan');
   for (const file of [
     'bin/inkan.js',
     'bin/ink.js',
