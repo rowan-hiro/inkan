@@ -21,7 +21,7 @@ function run(bin, args, cwd) {
 
 function normalize(output) {
   return output
-    .replace(/\d{4}-\d{2}-\d{2}-[0-9a-z]{4}/g, '<ID>')
+    .replace(/\d{4}-\d{2}-\d{2}-(?:\d{4}-)?[0-9a-z]{4}/g, '<ID>')
     .replace(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/g, '<TS>')
     .replace(/Initialized Inkan in .*/g, 'Initialized Inkan in <DIR>');
 }
@@ -79,7 +79,7 @@ test('full begin/amend/end/status/log flow through the CLI', () => {
   const begin = run(INKAN, ['begin', 'Ship it', '--accept', 'one', '--accept', 'two'], dir);
   assert.equal(begin.status, 0);
   const id = begin.stdout.trim();
-  assert.match(id, /^\d{4}-\d{2}-\d{2}-[0-9a-z]{4}$/);
+  assert.match(id, /^\d{4}-\d{2}-\d{2}-\d{4}-[0-9a-z]{4}$/);
 
   const amend = run(INKAN, ['amend', '--reason', 'scope grew', 'more work', '--accept', 'three'], dir);
   assert.equal(amend.status, 0);
@@ -133,4 +133,30 @@ test('inkan and ink produce identical output for the same command sequence', () 
   const fromInkan = steps(INKAN, dirA);
   const fromInk = steps(INK, dirB);
   assert.equal(fromInkan, fromInk);
+});
+
+test('decision add/show/list/update through the CLI, and amend accepts a legacy id positional', () => {
+  const dir = tmpDir();
+  run(INKAN, ['init'], dir);
+
+  const add = run(INKAN, ['decision', 'add', 'Pick a database', '--context', 'ctx', '--decision', 'dec'], dir);
+  assert.equal(add.status, 0);
+  assert.match(add.stdout.trim(), /0001-pick-a-database\.md$/);
+
+  const show = run(INKAN, ['decision', 'show', '1'], dir);
+  assert.match(show.stdout, /^# 1\. Pick a database/);
+
+  const list = run(INKAN, ['decision', 'list'], dir);
+  assert.equal(list.stdout.trim(), '0001  accepted  Pick a database');
+
+  const update = run(INKAN, ['decision', 'update', '1', '--status', 'superseded', '--reason', 'why'], dir);
+  assert.equal(update.stdout.trim(), '0001 accepted -> superseded');
+
+  // A legacy `YYYY-MM-DD-xxxx` id must still be usable as the `amend` id
+  // positional, not mistaken for the free-text addition.
+  const legacyId = '2026-01-01-zzzz';
+  const event = { v: 1, type: 'begin', id: legacyId, ts: '2026-01-01T00:00:00.000Z', outcome: 'x', criteria: ['a'], decisions: [], lane: null, head: null };
+  fs.writeFileSync(path.join(dir, '.inkan', 'outcomes', `${legacyId}.jsonl`), `${JSON.stringify(event)}\n`);
+  const amend = run(INKAN, ['amend', legacyId, '--reason', 'why'], dir);
+  assert.equal(amend.status, 0);
 });

@@ -40,9 +40,9 @@ inkan begin "Ship account recovery" \
   --accept "a valid link resets the password"
 ```
 
-This prints an id such as `2026-09-03-k7m2`. If circumstances change while
-the work is in progress, append to the same outcome instead of reinterpreting
-it:
+This prints an id such as `2026-09-03-1432-k7m2`. If circumstances change
+while the work is in progress, append to the same outcome instead of
+reinterpreting it:
 
 ```sh
 inkan amend --reason "Security review asked for rate limiting" \
@@ -60,7 +60,7 @@ This prints an `Inkan-Outcome: <id>` trailer. Put it in the commit that
 lands the work:
 
 ```sh
-git commit -m "$(printf 'feat: account recovery\n\nInkan-Outcome: 2026-09-03-k7m2\n')"
+git commit -m "$(printf 'feat: account recovery\n\nInkan-Outcome: 2026-09-03-1432-k7m2\n')"
 ```
 
 After losing context, whether from a new session or a new day, re-anchor
@@ -124,9 +124,10 @@ decisions it is bound by with `--decision <id>` on `begin` or `amend`.
 ```
 
 Everything under `.inkan/` is committed with the code, the same as any other
-project file. An outcome id looks like `2026-09-03-k7m2`: a date followed by
-four random characters, so ids sort by date and two branches essentially
-never collide. An open outcome is a file that has not yet received an `end`
+project file. An outcome id looks like `2026-09-03-1432-k7m2`: a date, the
+UTC hour and minute the outcome was begun, and four random characters, so
+ids sort chronologically to the minute and two branches essentially never
+collide. An open outcome is a file that has not yet received an `end`
 event; it can be tracked or untracked in Git, either is a true record of work
 in progress. Because each outcome has its own file, two branches that begin
 different outcomes never touch the same file, and an ordinary Git merge is

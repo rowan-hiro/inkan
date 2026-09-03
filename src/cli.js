@@ -12,7 +12,8 @@ import { InkanError } from './api.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
 
-const OUTCOME_ID_RE = /^\d{4}-\d{2}-\d{2}-[0-9a-z]{4}$/;
+// Matches the current YYYY-MM-DD-HHMM-xxxx id form and the legacy YYYY-MM-DD-xxxx form.
+const OUTCOME_ID_RE = /^\d{4}-\d{2}-\d{2}-(?:\d{4}-)?[0-9a-z]{4}$/;
 
 const HELP = `Usage: inkan <command> [options]
 
@@ -30,6 +31,15 @@ Commands:
       Print every open outcome.
   log [-n <count>] [--lane <tag>] [<id>]
       Print the outcome log, newest first; <id> prints one outcome in full.
+  decision add "<title>" --context <text> --decision <text> [--driver <text>]...
+               [--option <text>]... [--consequence <text>]... [-s <status>]
+      Write a numbered MADR record; prints its file path.
+  decision show <id>
+      Print one decision record verbatim. <id> accepts 2, 02, or 0002.
+  decision list [-s <status>]
+      One line per record, ascending by id.
+  decision update <id> --status <status> --reason <text> [--outcome <id>]
+      Append a dated history entry and set the new status.
 
   help, --help, -h     show this help
   --version, -v        print the version
@@ -82,7 +92,10 @@ function printRecord(record) {
     console.log(`  amend ${a.ts}: ${a.reason}`);
     if (a.addition) console.log(`    ${a.addition}`);
   }
-  if (record.decisions.length > 0) console.log(`  decisions: ${record.decisions.join(', ')}`);
+  if (record.decisionLinks.length > 0) {
+    const links = record.decisionLinks.map((d) => `${d.id} (${d.status ?? 'missing'})`);
+    console.log(`  decisions: ${links.join(', ')}`);
+  }
 
   if (record.closed) {
     console.log(`  closed: ${record.closedAt}`);
@@ -111,6 +124,55 @@ function printLogLine(record) {
     parts.push(`(${met}/${live} met)`);
   }
   console.log(parts.join('  '));
+}
+
+const DECISION_ADD_USAGE =
+  'usage: inkan decision add "<title>" --context <text> --decision <text> ' +
+  '[--driver <text>]... [--option <text>]... [--consequence <text>]... [-s <status>]';
+
+function runDecision(root, rest) {
+  const [sub, ...subRest] = rest;
+  switch (sub) {
+    case 'add': {
+      const opts = {
+        context: { type: 'string' },
+        decision: { type: 'string' },
+        driver: { type: 'string', multiple: true, default: [] },
+        option: { type: 'string', multiple: true, default: [] },
+        consequence: { type: 'string', multiple: true, default: [] },
+        status: { type: 'string', short: 's' },
+      };
+      const { values, positionals } = parseArgs({ args: subRest, options: opts, allowPositionals: true });
+      if (positionals.length !== 1) throw new InkanError(DECISION_ADD_USAGE);
+      console.log(api.decisionAdd({ root, title: positionals[0], ...values }).file);
+      break;
+    }
+    case 'show': {
+      const { positionals } = parseArgs({ args: subRest, allowPositionals: true });
+      if (positionals.length !== 1) throw new InkanError('usage: inkan decision show <id>');
+      process.stdout.write(api.decisionShow({ root, id: positionals[0] }).content);
+      break;
+    }
+    case 'list': {
+      const { values } = parseArgs({ args: subRest, options: { status: { type: 'string', short: 's' } } });
+      for (const r of api.decisionList({ root, status: values.status }).records) {
+        console.log(`${r.id}  ${r.status}  ${r.title}`);
+      }
+      break;
+    }
+    case 'update': {
+      const opts = { status: { type: 'string' }, reason: { type: 'string' }, outcome: { type: 'string' } };
+      const { values, positionals } = parseArgs({ args: subRest, options: opts, allowPositionals: true });
+      if (positionals.length !== 1) {
+        throw new InkanError('usage: inkan decision update <id> --status <status> --reason <text> [--outcome <id>]');
+      }
+      const result = api.decisionUpdate({ root, id: positionals[0], ...values });
+      console.log(`${result.id} ${result.from} -> ${result.to}`);
+      break;
+    }
+    default:
+      throw new InkanError(`unknown decision subcommand "${sub}"`);
+  }
 }
 
 function run(argv) {
@@ -190,6 +252,10 @@ function run(argv) {
         const result = api.log({ root, n, lane: values.lane, id: positionals[0] });
         if (result.record) printRecord(result.record);
         else for (const record of result.records) printLogLine(record);
+        break;
+      }
+      case 'decision': {
+        runDecision(root, rest);
         break;
       }
       default:

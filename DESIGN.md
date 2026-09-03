@@ -25,10 +25,13 @@ true record.
 
 ## Identity
 
-Outcome id: `YYYY-MM-DD-xxxx` where `xxxx` is four random base32 characters.
-Ids sort by date, are unguessable enough to avoid same-day collisions across
-branches, and are short enough to type. `doctor` reports a collision if one
-ever happens.
+Outcome id: `YYYY-MM-DD-HHMM-xxxx`, UTC date and UTC hour and minute of the
+begin timestamp, then `xxxx` four random base32 characters. Ids sort
+chronologically to the minute, with random tie-breaking within the same
+minute; they are unguessable enough to avoid collisions across branches and
+short enough to type. A reader also accepts the earlier `YYYY-MM-DD-xxxx`
+form, so ids minted before the `HHMM` segment was added stay resolvable.
+`doctor` reports a collision if one ever happens.
 
 Decision id: sequential four-digit number, as MADR convention expects.
 Collisions across branches are resolved by renaming the file; `doctor`
@@ -39,7 +42,7 @@ reports duplicates.
 Each line is one JSON object with `v: 1`. Readers refuse a higher `v`.
 
 ```jsonc
-{ "v": 1, "type": "begin", "id": "2026-09-03-k7m2", "ts": "...",
+{ "v": 1, "type": "begin", "id": "2026-09-03-1432-k7m2", "ts": "...",
   "outcome": "Ship account recovery",
   "criteria": ["expired links are rejected", "a valid link resets the password"],
   "decisions": ["0004"],
@@ -119,12 +122,12 @@ costs matter and they are different.
 
 Machine cost. The old single-file log had to be folded end to end to find
 the last three records, which is why it grew a SQLite index. Per-outcome
-files remove that need: ids sort by date, so `log -n 3` sorts the directory
-listing and reads three files. Only `--grep`, `--since`, and `--lane` read
-more, and at ten thousand outcomes that is about ten thousand small files,
-on the order of thirty thousand lines and under ten megabytes, which folds
-in well under a second on local disk. Git handles directories of that size
-routinely.
+files remove that need: ids sort chronologically to the minute, so `log -n
+3` sorts the directory listing and reads three files. Only `--grep`,
+`--since`, and `--lane` read more, and at ten thousand outcomes that is
+about ten thousand small files, on the order of thirty thousand lines and
+under ten megabytes, which folds in well under a second on local disk. Git
+handles directories of that size routinely.
 
 Agent cost. An agent cannot read a thousand records into context, so the
 tool must make the cheap view the default. `log` prints one line per outcome
@@ -163,7 +166,8 @@ edited after `end` and before the commit is a real divergence.
 ## Agent protocol
 
 `init` writes this block. It is the whole policy; the skill and any future
-MCP descriptions only point at it.
+MCP descriptions only point at it. It is generated verbatim by `inkan init`
+and must be kept identical to `protocolBlock` in `src/api.js`.
 
 ```markdown
 <!-- inkan -->
@@ -172,41 +176,17 @@ MCP descriptions only point at it.
 
 ## Agent protocol: sealed outcomes
 
-This repository uses Inkan (`inkan`, alias `ink`). Inkan keeps a trustworthy
-record of what the work was meant to deliver and what was declared at close.
-It does not run tests and does not judge the result; the repository's own
-checks do that.
+This repository uses Inkan (`inkan`, alias `ink`). Inkan keeps a trustworthy record of what the work was meant to deliver and what was declared at close. It does not run tests and does not judge the result; the repository's own checks do that. Write outcome prose in en.
 
-1. **Seal before durable changes.** Before changing code, configuration,
-   documentation, or dependencies, run
-   `inkan begin "<outcome>" --accept "<observable criterion>"`.
-   Repeat `--accept` per criterion. Add `--decision <id>` for each decision
-   record this work is bound by. Add `--lane <tag>` only when the
-   repository already files outcomes by lane.
-2. **The seal is a fact.** Deliver what it says. If circumstances change, do
-   not reinterpret it: run `inkan amend --reason "<what changed>"` with the
-   added or withdrawn criteria. The original text stays. Never question why
-   the outcome was sealed the way it was at the time.
-3. **Close with dispositions, then commit.** Run
-   `inkan end --met <n>... [--unmet <n>...] --note "<what happened>"`.
-   Every criterion gets a disposition. Put the printed
-   `Inkan-Outcome: <id>` trailer in the commit message that lands the work.
-   Never report success without closing the outcome.
-4. **Re-anchor after context loss.** Run `inkan status` and
-   `inkan log -n 3`. The open outcome is the task; continue it. To stop it,
-   close it with a note. Do not begin over it.
-5. **Closed outcomes are final.** Reviewing the log is reading, not
-   re-checking. Never re-verify, re-attest, or re-close a closed outcome. If
-   a past declaration now looks wrong, that is a new outcome with its own
-   seal.
+1. **Seal before durable changes.** Before changing code, configuration, documentation, or dependencies, run `inkan begin "<outcome>" --accept "<observable criterion>"`. Repeat `--accept` per criterion. Add `--decision <id>` for each decision record this work is bound by. Add `--lane <tag>` only when the repository already files outcomes by lane.
+2. **The seal is a fact.** Deliver what it says. If circumstances change, do not reinterpret it: run `inkan amend --reason "<what changed>"` with the added or withdrawn criteria. The original text stays. Never question why the outcome was sealed the way it was at the time.
+3. **Close with dispositions, then commit.** Run `inkan end --met <n>... [--unmet <n>...] --note "<what happened>"`. Every criterion gets a disposition. Put the printed `Inkan-Outcome: <id>` trailer in the commit message that lands the work. Never report success without closing the outcome.
+4. **Re-anchor after context loss.** Run `inkan status` and `inkan log -n 3`. The open outcome is the task; continue it. To stop it, close it with a note. Do not begin over it.
+5. **Closed outcomes are final.** Reviewing the log is reading, not re-checking. Never re-verify, re-attest, or re-close a closed outcome. If a past declaration now looks wrong, that is a new outcome with its own seal.
 
-Decision records live in `.inkan/decisions/`. Their Context and Decision
-sections record the scenario at the time and are never edited. To challenge
-one, run `inkan decision update <id> --status <status> --reason "<what
-changed>"` or add a new record that supersedes it.
+Decision records live in `.inkan/decisions/`. Their Context and Decision sections record the scenario at the time and are never edited. To challenge one, run `inkan decision update <id> --status <status> --reason "<what changed>"` or add a new record that supersedes it.
 
-Outcome log: `.inkan/outcomes/<id>.jsonl`, one append-only file per
-outcome. Commit `.inkan/` with the code. Do not edit these files by hand.
+Outcome log: `.inkan/outcomes/<id>.jsonl`, one append-only file per outcome. Commit `.inkan/` with the code. Do not edit these files by hand.
 <!-- /inkan -->
 ```
 

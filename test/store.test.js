@@ -12,17 +12,31 @@ function tmpDir() {
 test('newOutcomeId has the right shape and alphabet', () => {
   for (let i = 0; i < 50; i++) {
     const id = store.newOutcomeId([]);
-    assert.match(id, /^\d{4}-\d{2}-\d{2}-[0-9a-z]{4}$/);
+    assert.match(id, /^\d{4}-\d{2}-\d{2}-\d{4}-[0-9a-z]{4}$/);
     const suffix = id.slice(-4);
     for (const ch of suffix) assert.ok(!'aeiou'.includes(ch), `${id} contains a vowel`);
   }
 });
 
 test('newOutcomeId avoids ids already in use', () => {
-  const today = new Date().toISOString().slice(0, 10);
-  const taken = `${today}-aaaa`; // never produced since "a" is excluded, so this never collides
+  const sample = store.newOutcomeId([]);
+  const taken = `${sample.slice(0, -4)}aaaa`; // same date-HHMM prefix, a suffix never produced ("a" is excluded)
   const id = store.newOutcomeId([taken]);
   assert.notEqual(id, taken);
+});
+
+test('ids with different date-HHMM prefixes sort chronologically as plain strings', () => {
+  const earlier = '2026-09-03-0500-zzzz';
+  const later = '2026-09-03-0501-aaaa';
+  assert.ok(earlier < later, 'a later minute must sort after an earlier one regardless of the random suffix');
+});
+
+test('a legacy YYYY-MM-DD-xxxx id has the shape listOutcomeIds and readOutcomeEvents still accept', () => {
+  const root = tmpDir();
+  const legacyId = '2026-01-01-zzzz';
+  store.createOutcomeFile(root, legacyId, { v: 1, type: 'begin', id: legacyId });
+  assert.deepEqual(store.listOutcomeIds(root), [legacyId]);
+  assert.deepEqual(store.readOutcomeEvents(root, legacyId), [{ v: 1, type: 'begin', id: legacyId }]);
 });
 
 test('findRoot walks up to the nearest .inkan directory', () => {

@@ -103,7 +103,7 @@ test('begin seals an outcome and records head', () => {
   fs.writeFileSync(path.join(root, 'a.txt'), 'x');
   commitAll(root, 'first');
   const result = api.begin({ root, outcome: 'Ship it', accept: ['one', 'two'], lane: 'backend' });
-  assert.match(result.id, /^\d{4}-\d{2}-\d{2}-[0-9a-z]{4}$/);
+  assert.match(result.id, /^\d{4}-\d{2}-\d{2}-\d{4}-[0-9a-z]{4}$/);
   assert.equal(result.lane, 'backend');
   assert.match(result.head, /^[0-9a-f]{40}$/);
 });
@@ -361,4 +361,64 @@ test('open outcomes are independent across two worktrees of one repo', () => {
   assert.notEqual(begunMain.id, seed.id);
   assert.equal(api.status({ root: main }).open.length, 1);
   assert.equal(api.status({ root: second }).open.length, 1);
+});
+
+// --- decisions ------------------------------------------------------------
+
+test('decision add/show/list/update round-trip, and begin links a decision by status', () => {
+  const root = repo();
+  const added = api.decisionAdd({ root, title: 'Pick a database', context: 'ctx', decision: 'Use SQLite.' });
+  assert.equal(added.id, '0001');
+  assert.match(api.decisionShow({ root, id: '1' }).content, /^# 1\. Pick a database/);
+  assert.deepEqual(api.decisionList({ root }).records.map((r) => [r.id, r.status]), [['0001', 'accepted']]);
+
+  const begun = api.begin({ root, outcome: 'x', decision: ['0001'] });
+  assert.deepEqual(begun.decisions, ['0001']);
+  assert.deepEqual(api.status({ root }).open[0].decisionLinks, [{ id: '0001', status: 'accepted' }]);
+
+  const updated = api.decisionUpdate({ root, id: '01', status: 'superseded', reason: 'no longer holds' });
+  assert.deepEqual(updated, { id: '0001', from: 'accepted', to: 'superseded' });
+  assert.deepEqual(api.status({ root }).open[0].decisionLinks, [{ id: '0001', status: 'superseded' }]);
+  assert.deepEqual(api.decisionList({ root, status: 'superseded' }).records.map((r) => r.id), ['0001']);
+});
+
+test('begin and amend refuse an unknown decision id', () => {
+  const root = repo();
+  assert.throws(() => api.begin({ root, outcome: 'x', decision: ['0001'] }), /unknown decision "0001"/);
+  api.begin({ root, outcome: 'x' });
+  assert.throws(() => api.amend({ root, reason: 'why', decision: ['0001'] }), /unknown decision "0001"/);
+});
+
+test('status prints (missing) for a decision link whose file is gone', () => {
+  const root = repo();
+  const id = '2026-01-01-0000-dead';
+  store.createOutcomeFile(root, id, {
+    v: 1,
+    type: 'begin',
+    id,
+    ts: '2026-01-01T00:00:00.000Z',
+    outcome: 'x',
+    criteria: ['a'],
+    decisions: ['0009'],
+    lane: null,
+    head: null,
+  });
+  assert.deepEqual(api.status({ root }).open[0].decisionLinks, [{ id: '0009', status: null }]);
+});
+
+test('a legacy YYYY-MM-DD-xxxx outcome id still resolves', () => {
+  const root = repo();
+  const legacyId = '2026-01-01-zzzz';
+  store.createOutcomeFile(root, legacyId, {
+    v: 1,
+    type: 'begin',
+    id: legacyId,
+    ts: '2026-01-01T00:00:00.000Z',
+    outcome: 'legacy',
+    criteria: ['a'],
+    decisions: [],
+    lane: null,
+    head: null,
+  });
+  assert.equal(api.log({ root, id: legacyId }).record.outcome, 'legacy');
 });

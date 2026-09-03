@@ -64,3 +64,9 @@ directory and reading a handful of files.
   shared log file.
 
 ## Decision History
+
+### 2026-09-03T04:45:22.133Z, outcome 2026-09-03-33cx
+
+Status: accepted -> accepted
+
+Outcome ids gained a UTC HHMM segment because same-day random suffixes did not sort chronologically; the rest of the decision stands.

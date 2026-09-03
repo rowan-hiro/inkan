@@ -8,6 +8,7 @@ import path from 'node:path';
 import * as store from './store.js';
 import { fold, computeContractHash } from './fold.js';
 import * as git from './git.js';
+import * as decisions from './decisions.js';
 
 export class InkanError extends Error {
   constructor(message) {
@@ -21,9 +22,7 @@ const LANG_RE = /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/;
 
 function resolveRoot(root) {
   const found = store.findRoot(root);
-  if (!found) {
-    throw new InkanError('not an Inkan repository (no .inkan found); run "inkan init" first');
-  }
+  if (!found) throw new InkanError('not an Inkan repository (no .inkan found); run "inkan init" first');
   return found;
 }
 
@@ -46,44 +45,76 @@ function openRecords(root) {
   return allRecords(root).filter((r) => !r.closed);
 }
 
-function validateDecisionIds(ids) {
+/** The decision file whose filename starts with `<id>-`, or null. */
+function findDecisionFile(root, id) {
+  const dir = store.decisionsDir(root);
+  if (!fs.existsSync(dir)) return null;
+  const match = fs.readdirSync(dir).find((name) => name.startsWith(`${id}-`) && name.endsWith('.md'));
+  return match ? path.join(dir, match) : null;
+}
+
+function validateDecisionIds(root, ids) {
   for (const id of ids) {
     if (!DECISION_ID_RE.test(id)) throw new InkanError(`malformed decision id "${id}" (expected four digits)`);
+    if (!findDecisionFile(root, id)) throw new InkanError(`unknown decision "${id}"; add it first with "inkan decision add"`);
   }
+}
+
+/** Resolves `2`, `02`, or `0002` to the file whose name starts with the canonical id. */
+function requireDecisionFile(root, rawId) {
+  if (!/^\d{1,4}$/.test(String(rawId))) throw new InkanError(`malformed decision id "${rawId}" (expected digits, e.g. 2, 02, or 0002)`);
+  const id = String(Number(rawId)).padStart(4, '0');
+  const file = findDecisionFile(root, id);
+  if (!file) throw new InkanError(`unknown decision "${id}"`);
+  return { id, file };
+}
+
+/** `{ id, status }` for each linked decision id, `status: null` when the file is missing. */
+function resolveDecisionLinks(root, ids) {
+  return ids.map((id) => {
+    const file = findDecisionFile(root, id);
+    if (!file) return { id, status: null };
+    return { id, status: decisions.parse(fs.readFileSync(file, 'utf8'), file).status };
+  });
+}
+
+function requireStatus(status) {
+  const normalized = String(status).toLowerCase();
+  if (!decisions.STATUSES.includes(normalized)) throw new InkanError(`malformed status "${status}" (expected one of ${decisions.STATUSES.join(', ')})`);
+  return normalized;
+}
+
+/** The single open outcome, or null; refuses ambiguity naming `flagHint` in the message. */
+function singleOpenOrNull(root, flagHint) {
+  const open = openRecords(root);
+  if (open.length > 1) {
+    throw new InkanError(`more than one outcome is open (${open.map((r) => r.id).join(', ')}); specify which with ${flagHint}`);
+  }
+  return open[0] ?? null;
 }
 
 /** The single open outcome, or the one named by `id`. Refuses ambiguity. */
 function resolveTarget(root, id) {
   if (id) {
     const record = loadRecord(root, id);
-    if (record.closed) {
-      throw new InkanError(`outcome "${id}" is closed; new work is a new outcome`);
-    }
+    if (record.closed) throw new InkanError(`outcome "${id}" is closed; new work is a new outcome`);
     return record;
   }
-  const open = openRecords(root);
-  if (open.length === 0) throw new InkanError('no outcome is open');
-  if (open.length > 1) {
-    throw new InkanError(
-      `more than one outcome is open (${open.map((r) => r.id).join(', ')}); specify which with an id`
-    );
-  }
-  return open[0];
+  const open = singleOpenOrNull(root, 'an id');
+  if (!open) throw new InkanError('no outcome is open');
+  return open;
 }
 
 export function begin({ root, outcome, accept = [], decision = [], lane }) {
   const resolvedRoot = resolveRoot(root);
   if (!outcome || !outcome.trim()) throw new InkanError('an outcome is required');
-  validateDecisionIds(decision);
-
+  validateDecisionIds(resolvedRoot, decision);
   const open = openRecords(resolvedRoot);
   if (open.length > 0) {
     throw new InkanError(
-      `outcome(s) already open: ${open.map((r) => r.id).join(', ')}; ` +
-        'close them with "inkan end --note <text>" before starting a new one'
+      `outcome(s) already open: ${open.map((r) => r.id).join(', ')}; close them with "inkan end --note <text>" before starting a new one`
     );
   }
-
   const head = git.head(resolvedRoot);
   const existingIds = store.listOutcomeIds(resolvedRoot);
   const resolvedLane = lane ?? null;
@@ -115,7 +146,7 @@ export function begin({ root, outcome, accept = [], decision = [], lane }) {
 export function amend({ root, id, reason, addition, accept = [], withdraw = [], decision = [] }) {
   const resolvedRoot = resolveRoot(root);
   if (!reason || !reason.trim()) throw new InkanError('amend requires --reason');
-  validateDecisionIds(decision);
+  validateDecisionIds(resolvedRoot, decision);
   const record = resolveTarget(resolvedRoot, id);
 
   const withdrawIndexes = withdraw.map((raw) => {
@@ -125,11 +156,8 @@ export function amend({ root, id, reason, addition, accept = [], withdraw = [], 
   });
   for (const n of withdrawIndexes) {
     const criterion = record.criteria[n - 1];
-    if (!criterion || criterion.withdrawn) {
-      throw new InkanError(`cannot withdraw unknown or already-withdrawn criterion ${n}`);
-    }
+    if (!criterion || criterion.withdrawn) throw new InkanError(`cannot withdraw unknown or already-withdrawn criterion ${n}`);
   }
-
   const head = git.head(resolvedRoot);
   store.appendEvent(resolvedRoot, record.id, {
     v: 1,
@@ -143,7 +171,6 @@ export function amend({ root, id, reason, addition, accept = [], withdraw = [], 
     decisions: decision,
     head,
   });
-
   const updated = loadRecord(resolvedRoot, record.id);
   return { id: record.id, contractHash: computeContractHash(updated) };
 }
@@ -164,7 +191,6 @@ export function end({ root, id, met = [], unmet = [], status, note }) {
     throw new InkanError(`malformed status "${status}" (only "abandoned" may be set explicitly)`);
   }
   const record = resolveTarget(resolvedRoot, id);
-
   const seen = new Set();
   const dispositions = [];
   for (const raw of [...met.map((r) => [r, true]), ...unmet.map((r) => [r, false])]) {
@@ -173,23 +199,18 @@ export function end({ root, id, met = [], unmet = [], status, note }) {
     seen.add(d.criterion);
     dispositions.push(d);
   }
-
   for (const d of dispositions) {
     const criterion = record.criteria[d.criterion - 1];
     if (!criterion) throw new InkanError(`unknown criterion ${d.criterion}`);
     if (criterion.withdrawn) throw new InkanError(`criterion ${d.criterion} was withdrawn`);
   }
-
   let finalStatus = status;
   if (finalStatus !== 'abandoned') {
     for (const c of record.criteria) {
-      if (!c.withdrawn && !seen.has(c.index)) {
-        throw new InkanError(`criterion ${c.index} needs a disposition (--met or --unmet)`);
-      }
+      if (!c.withdrawn && !seen.has(c.index)) throw new InkanError(`criterion ${c.index} needs a disposition (--met or --unmet)`);
     }
     finalStatus = dispositions.some((d) => !d.met) ? 'partial' : 'completed';
   }
-
   const contractHash = computeContractHash(record);
   const tree = git.treeHash(resolvedRoot);
   const head = git.head(resolvedRoot);
@@ -211,17 +232,74 @@ export function end({ root, id, met = [], unmet = [], status, note }) {
 
 export function status({ root }) {
   const resolvedRoot = resolveRoot(root);
-  const open = openRecords(resolvedRoot).sort((a, b) => (a.id < b.id ? -1 : 1));
+  const open = openRecords(resolvedRoot)
+    .sort((a, b) => (a.id < b.id ? -1 : 1))
+    .map((r) => ({ ...r, decisionLinks: resolveDecisionLinks(resolvedRoot, r.decisions) }));
   return { open };
 }
 
 export function log({ root, n, lane, id }) {
   const resolvedRoot = resolveRoot(root);
-  if (id) return { record: loadRecord(resolvedRoot, id) };
-
+  if (id) {
+    const record = loadRecord(resolvedRoot, id);
+    return { record: { ...record, decisionLinks: resolveDecisionLinks(resolvedRoot, record.decisions) } };
+  }
   let records = allRecords(resolvedRoot).sort((a, b) => (a.id < b.id ? 1 : -1));
   if (lane) records = records.filter((r) => r.lane === lane);
   return { records: records.slice(0, n ?? 20) };
+}
+
+// --- decisions ------------------------------------------------------------
+
+export function decisionAdd({ root, title, context, decision, driver = [], option = [], consequence = [], status }) {
+  const resolvedRoot = resolveRoot(root);
+  if (!title || !title.trim()) throw new InkanError('decision add requires a title');
+  if (!context || !context.trim()) throw new InkanError('decision add requires --context');
+  if (!decision || !decision.trim()) throw new InkanError('decision add requires --decision');
+  const resolvedStatus = requireStatus(status ?? 'accepted');
+  const id = decisions.nextId(resolvedRoot);
+  const dir = store.decisionsDir(resolvedRoot);
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, `${id}-${decisions.slugify(title)}.md`);
+  const date = new Date().toISOString().slice(0, 10);
+  const sections = { context, drivers: driver, options: option, outcome: decision, consequences: consequence };
+  const content = decisions.render({ id, title, date, status: resolvedStatus, sections });
+  fs.writeFileSync(file, content, { encoding: 'utf8', flag: 'wx' });
+  return { id, file };
+}
+
+export function decisionShow({ root, id }) {
+  const resolvedRoot = resolveRoot(root);
+  const { id: resolvedId, file } = requireDecisionFile(resolvedRoot, id);
+  return { id: resolvedId, file, content: fs.readFileSync(file, 'utf8') };
+}
+
+export function decisionList({ root, status }) {
+  const resolvedRoot = resolveRoot(root);
+  let records = decisions.list(resolvedRoot);
+  if (status !== undefined) {
+    const normalized = requireStatus(status);
+    records = records.filter((r) => r.status === normalized);
+  }
+  return { records };
+}
+
+export function decisionUpdate({ root, id, status, reason, outcome }) {
+  const resolvedRoot = resolveRoot(root);
+  if (status === undefined) throw new InkanError('decision update requires --status');
+  const resolvedStatus = requireStatus(status);
+  if (!reason || !reason.trim()) throw new InkanError('decision update requires --reason');
+  const { id: resolvedId, file } = requireDecisionFile(resolvedRoot, id);
+  let outcomeId;
+  if (outcome !== undefined) {
+    const record = loadRecord(resolvedRoot, outcome);
+    if (record.closed) throw new InkanError(`outcome "${outcome}" is closed`);
+    outcomeId = record.id;
+  } else {
+    outcomeId = singleOpenOrNull(resolvedRoot, '--outcome <id>')?.id;
+  }
+  const from = decisions.appendHistory(file, { ts: new Date().toISOString(), outcomeId, to: resolvedStatus, reason });
+  return { id: resolvedId, from, to: resolvedStatus };
 }
 
 const AGENTS_FILENAME = 'AGENTS.md';

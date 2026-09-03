@@ -95,10 +95,13 @@ true record.
 
 ### Identity
 
-Outcome id: `YYYY-MM-DD-xxxx` where `xxxx` is four random base32 characters.
-Ids sort by date, are unguessable enough to avoid same-day collisions across
-branches, and are short enough to type. `doctor` reports a collision if one
-ever happens.
+Outcome id: `YYYY-MM-DD-HHMM-xxxx`, UTC date and UTC hour and minute of the
+begin timestamp, then `xxxx` four random base32 characters. Ids sort
+chronologically to the minute, with random tie-breaking within the same
+minute; they are unguessable enough to avoid collisions across branches and
+short enough to type. A reader also accepts the earlier `YYYY-MM-DD-xxxx`
+form, so ids minted before the `HHMM` segment was added stay resolvable.
+`doctor` reports a collision if one ever happens.
 
 Decision id: sequential four-digit number, as MADR convention expects.
 Collisions across branches are resolved by renaming the file; `doctor`
@@ -109,7 +112,7 @@ reports duplicates.
 Each line is one JSON object with `v: 1`. Readers refuse a higher `v`.
 
 ```jsonc
-{ "v": 1, "type": "begin", "id": "2026-09-03-k7m2", "ts": "...",
+{ "v": 1, "type": "begin", "id": "2026-09-03-1432-k7m2", "ts": "...",
   "outcome": "Ship account recovery",
   "criteria": ["expired links are rejected", "a valid link resets the password"],
   "decisions": ["0004"],
@@ -189,9 +192,10 @@ costs matter and they are different.
 
 Machine cost. The old single-file log had to be folded end to end to find
 the last three records, which is why it grew a SQLite index. Per-outcome
-files remove that need: ids sort by date, so `log -n 3` sorts the directory
-listing and reads three files. Only `--grep`, `--since`, and `--lane` read
-more, and at ten thousand outcomes that is about ten thousand small files,
+files remove that need: ids sort chronologically to the minute, so `log -n
+3` sorts the directory listing and reads three files. Only `--grep`,
+`--since`, and `--lane` read more, and at ten thousand outcomes that is
+about ten thousand small files,
 on the order of thirty thousand lines and under ten megabytes, which folds
 in well under a second on local disk. Git handles directories of that size
 routinely.

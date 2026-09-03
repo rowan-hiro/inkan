@@ -40,19 +40,23 @@ export function outcomeFile(root, id) {
 const ID_ALPHABET = '0123456789bcdfghjkmnpqrstvwxyz';
 
 /**
- * A fresh `YYYY-MM-DD-xxxx` id. `existingIds` is checked to dodge same-day
- * collisions; a true collision across clones is rare enough that `doctor`
- * (M3) reports it rather than this function preventing it outright.
+ * A fresh `YYYY-MM-DD-HHMM-xxxx` id (UTC date, UTC hour and minute, four
+ * random base32 characters), sorting chronologically to the minute with
+ * random tie-breaking. `existingIds` dodges same-minute collisions; a true
+ * cross-clone collision is left for `doctor` (M3) to report. Readers also
+ * accept the earlier `YYYY-MM-DD-xxxx` form (see OUTCOME_ID_RE in cli.js).
  */
 export function newOutcomeId(existingIds = []) {
   const existing = new Set(existingIds);
-  const date = new Date().toISOString().slice(0, 10);
+  const now = new Date().toISOString();
+  const date = now.slice(0, 10);
+  const hhmm = now.slice(11, 13) + now.slice(14, 16);
   for (;;) {
     let suffix = '';
     for (let i = 0; i < 4; i++) {
       suffix += ID_ALPHABET[crypto.randomInt(ID_ALPHABET.length)];
     }
-    const id = `${date}-${suffix}`;
+    const id = `${date}-${hhmm}-${suffix}`;
     if (!existing.has(id)) return id;
   }
 }
