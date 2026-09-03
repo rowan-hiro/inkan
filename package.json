@@ -28,7 +28,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "bench": "node bench/history.js",
     "test:package": "node scripts/test-package.mjs"
   },
