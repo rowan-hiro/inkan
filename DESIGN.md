@@ -93,7 +93,7 @@ that violates these is reported as corrupt and never silently repaired.
 | `inkan status` | Prints every open outcome verbatim: sealed time, hash, lane, criteria with indexes, amendments with reasons, linked decisions. | Never. |
 | `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | One line per outcome, newest first, default 20: id, status, lane if any, headline, met count. `<id>` prints one outcome in full including amendments, dispositions, note, and tree. Filters narrow the scan. | Never. |
 | `inkan check [<commit>]` | Read-only. Reads `Inkan-Outcome` trailers, loads each named outcome from the commit's own tree, refolds it, and reports: trailer present, outcome closed, recorded hash matches refold, recorded tree matches the commit tree. Exit 0 consistent, 1 mismatch, 2 no trailer. A mismatch is a fact about a past commit; it is reported, never repaired by redoing work. | Never blocks anything. Not installable as a hook by `init`. |
-| `inkan doctor` | Folds every outcome file and parses every decision; reports corrupt files, duplicate ids, and dangling decision links. | Never. |
+| `inkan doctor` | Folds every outcome file and parses every decision; reports corrupt files, an outcome whose `begin` id differs from its file name, duplicate decision ids, and dangling decision links. Exit 0 clean, 1 problems. | Never. |
 | `inkan decision add "<title>" --context ... --decision ... [--driver]... [--option]... [--consequence]... [-s status]` | Writes a numbered MADR file. | Missing required sections. |
 | `inkan decision update <id> --status <status> --reason <text>` | Appends a dated history entry to the MADR. Names the open outcome when there is one. Never edits Context or Decision sections. | Unknown id. |
 | `inkan decision list [-s status]` / `show <id>` | Read-only. | Never. |
@@ -136,10 +136,16 @@ line carries the dispositions and the note, so reading a closed outcome
 never means replaying its events. Filters narrow the scan before it reaches
 the agent.
 
-No derived cache is built up front. M3 adds a synthetic benchmark with ten
-thousand outcomes and two targets: `log -n 3` under 50 ms and `log --grep`
-under one second. If a real repository breaks those targets, a read-through
-cache may be added as a pure performance layer that is never consulted for
+No derived cache is built up front. `bench/history.js` (`npm run bench`)
+seeds a temporary repository with ten thousand closed outcomes directly
+through `src/store.js` and times three calls through `src/api.js`: `log({ n:
+3 })` against 50 ms, `log({ grep: 'recovery' })` against 1 s, and `doctor()`
+against 2 s; it prints each timing and exits 1 if a target is missed. A
+smaller version of the same benchmark, built at 2,000 outcomes with the
+proportionally tighter targets 50 ms / 500 ms / 1 s, runs inside the test
+suite so the targets are enforced on every run, not just measured on
+demand. If a real repository breaks those targets, a read-through cache may
+be added as a pure performance layer that is never consulted for
 correctness, never committed, and rebuilt from the files whenever absent.
 Not before.
 
@@ -162,6 +168,35 @@ git diff-tree -r --quiet <recorded-tree> <commit>^{tree} -- . ':(exclude).inkan/
 Outside a Git worktree `tree` is `null` and `check` reports that binding is
 unavailable. `.inkan/decisions` is inside the hash on purpose: a decision
 edited after `end` and before the commit is a real divergence.
+
+## Check and doctor output
+
+`check` prints one block per `Inkan-Outcome` trailer on the resolved commit,
+then a one-word summary:
+
+```
+9f06a7b  Inkan-Outcome: 2026-09-03-33cx
+  outcome: present, closed (completed)
+  hash: matches refold
+  tree: matches commit tree
+consistent
+```
+
+Each of the three fact lines can instead read `outcome: missing from
+commit`, `outcome: present, open`, `hash: does not match refold`, or `tree:
+differs from commit tree`; a `tree: not recorded` line means the outcome was
+closed outside a worktree, which is not itself a mismatch. Whichever fact
+fails is the only line printed for it, the summary reads `mismatch` instead
+of `consistent`, and the only further line it may print is `a mismatch is a
+fact about this commit; it is recorded, not repaired`. A commit with no
+trailer at all prints `<sha>  no Inkan-Outcome trailer` and nothing else.
+Exit 0 consistent, 1 mismatch, 2 no trailer.
+
+`doctor` prints one line per problem it finds (`outcome <id>: <message>` or
+`decision <id-or-file>: <message>`) and exits 1, or prints `ok: <n>
+outcomes, <m> decisions` and exits 0 when nothing is wrong. Neither command
+repairs, deletes, or suggests redoing anything; both are exit codes for
+scripting, not gates.
 
 ## Agent protocol
 

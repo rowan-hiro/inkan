@@ -67,6 +67,9 @@ test('treeHash does not leave a temporary index file behind', () => {
   gitInit(dir);
   fs.writeFileSync(path.join(dir, 'a.txt'), 'hello');
   git.treeHash(dir);
-  const leftovers = fs.readdirSync(os.tmpdir()).filter((name) => name.startsWith('inkan-index-'));
+  // Scoped to this process's own pid: node runs each test file in its own
+  // process, and another file's concurrent treeHash call names its temp
+  // file with a different pid, so this must not collide with that race.
+  const leftovers = fs.readdirSync(os.tmpdir()).filter((name) => name.startsWith(`inkan-index-${process.pid}-`));
   assert.equal(leftovers.length, 0);
 });

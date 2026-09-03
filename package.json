@@ -19,7 +19,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/",
+    "bench": "node bench/history.js"
   },
   "keywords": [
     "inkan",

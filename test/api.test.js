@@ -315,6 +315,66 @@ test('log filters by lane', () => {
   assert.equal(backend[0].outcome, 'a');
 });
 
+test('log --since keeps records sealed on or after the given date', () => {
+  const root = repo();
+  const begun = api.begin({ root, outcome: 'old one', accept: ['a'] });
+  api.end({ root, met: ['1'], note: 'done' });
+  const sealedAt = api.log({ root, id: begun.id }).record.sealedAt;
+  const before = new Date(Date.parse(sealedAt) - 1000).toISOString();
+  const after = new Date(Date.parse(sealedAt) + 1000).toISOString();
+  assert.deepEqual(api.log({ root, since: before }).records.map((r) => r.id), [begun.id]);
+  assert.deepEqual(api.log({ root, since: after }).records, []);
+  assert.throws(() => api.log({ root, since: 'not-a-date' }), /malformed --since/);
+});
+
+test('log --grep matches the headline, criteria, amendments, and note, case-insensitively', () => {
+  const root = repo();
+  api.begin({ root, outcome: 'Ship account RECOVERY', accept: ['a'] });
+  api.amend({ root, reason: 'scope grew', addition: 'Rate-limit requests' });
+  api.end({ root, met: ['1'], note: 'shipped as scoped' });
+  api.begin({ root, outcome: 'unrelated', accept: ['b'] });
+  api.end({ root, met: ['1'], note: 'done' });
+
+  assert.equal(api.log({ root, grep: 'recovery' }).records.length, 1);
+  assert.equal(api.log({ root, grep: 'rate-limit' }).records.length, 1);
+  assert.equal(api.log({ root, grep: 'scoped' }).records.length, 1);
+  assert.equal(api.log({ root, grep: 'nowhere-to-be-found' }).records.length, 0);
+});
+
+test('log --status filters by open or a closed status', () => {
+  const root = repo();
+  api.begin({ root, outcome: 'a', accept: ['x'] });
+  api.end({ root, met: ['1'], note: 'done' });
+  api.begin({ root, outcome: 'b', accept: ['x'] });
+  assert.equal(api.log({ root, status: 'completed' }).records.length, 1);
+  assert.equal(api.log({ root, status: 'open' }).records.length, 1);
+  assert.equal(api.log({ root, status: 'abandoned' }).records.length, 0);
+  assert.throws(() => api.log({ root, status: 'bogus' }), /malformed status/);
+});
+
+test('log --decision accepts 2, 02, or 0002 and filters by linked decisions', () => {
+  const root = repo();
+  api.decisionAdd({ root, title: 'Pick a database', context: 'ctx', decision: 'dec' });
+  api.begin({ root, outcome: 'a', accept: ['x'], decision: ['0001'] });
+  api.end({ root, met: ['1'], note: 'done' });
+  api.begin({ root, outcome: 'b', accept: ['x'] });
+  api.end({ root, met: ['1'], note: 'done' });
+  assert.equal(api.log({ root, decision: '1' }).records.length, 1);
+  assert.equal(api.log({ root, decision: '01' }).records.length, 1);
+  assert.equal(api.log({ root, decision: '0001' }).records.length, 1);
+});
+
+test('log filters combine', () => {
+  const root = repo();
+  api.begin({ root, outcome: 'Ship account recovery', accept: ['a'], lane: 'backend' });
+  api.end({ root, met: ['1'], note: 'done' });
+  api.begin({ root, outcome: 'Ship account recovery too', accept: ['a'], lane: 'frontend' });
+  api.end({ root, met: ['1'], note: 'done' });
+  const records = api.log({ root, grep: 'recovery', lane: 'backend', status: 'completed' }).records;
+  assert.equal(records.length, 1);
+  assert.equal(records[0].outcome, 'Ship account recovery');
+});
+
 test('log <id> returns the full closed record', () => {
   const root = repo();
   const begun = api.begin({ root, outcome: 'x', accept: ['a'] });

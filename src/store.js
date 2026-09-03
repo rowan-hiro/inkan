@@ -71,9 +71,8 @@ export function listOutcomeIds(root) {
     .sort();
 }
 
-export function readOutcomeEvents(root, id) {
-  const file = outcomeFile(root, id);
-  const raw = fs.readFileSync(file, 'utf8');
+/** Parse one outcome file's raw text into events, `label` naming it in error messages. */
+export function parseOutcomeEvents(raw, label) {
   return raw
     .split('\n')
     .filter((line) => line.length > 0)
@@ -81,9 +80,14 @@ export function readOutcomeEvents(root, id) {
       try {
         return JSON.parse(line);
       } catch {
-        throw new Error(`${file}:${i + 1}: not valid JSON`);
+        throw new Error(`${label}:${i + 1}: not valid JSON`);
       }
     });
+}
+
+export function readOutcomeEvents(root, id) {
+  const file = outcomeFile(root, id);
+  return parseOutcomeEvents(fs.readFileSync(file, 'utf8'), file);
 }
 
 function fsyncDir(dir) {

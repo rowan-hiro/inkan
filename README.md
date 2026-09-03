@@ -82,7 +82,27 @@ inkan check HEAD
 
 This reports whether the trailer, the recorded hash, and the recorded tree
 line up with what the commit actually contains. It is a read-only report
-about the past; it changes nothing and blocks nothing.
+about the past; it changes nothing and blocks nothing:
+
+```
+9f06a7b  Inkan-Outcome: 2026-09-03-33cx
+  outcome: present, closed (completed)
+  hash: matches refold
+  tree: matches commit tree
+consistent
+```
+
+A mismatch replaces the offending line (`outcome: missing from commit`,
+`outcome: present, open`, `hash: does not match refold`, or `tree: differs
+from commit tree`) and prints `mismatch` instead of `consistent`; nothing is
+repaired. Exit 0 consistent, 1 mismatch, 2 when the commit carries no
+`Inkan-Outcome` trailer at all.
+
+`inkan doctor` folds every outcome and parses every decision, printing one
+line per problem found (a corrupt file, an id that does not match its file
+name, a duplicate decision id, a dangling decision link) or `ok: <n>
+outcomes, <m> decisions` when there is nothing to report. Exit 0 clean, 1
+problems; it never repairs or deletes anything either.
 
 ## Commands
 
@@ -95,7 +115,7 @@ about the past; it changes nothing and blocks nothing.
 | `inkan status` | Prints every open outcome verbatim: sealed time, hash, lane, criteria with indexes, amendments with reasons, linked decisions. | Never. |
 | `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | One line per outcome, newest first, default 20: id, status, lane if any, headline, met count. `<id>` prints one outcome in full including amendments, dispositions, note, and tree. Filters narrow the scan. | Never. |
 | `inkan check [<commit>]` | Read-only. Reads `Inkan-Outcome` trailers, loads each named outcome from the commit's own tree, refolds it, and reports: trailer present, outcome closed, recorded hash matches refold, recorded tree matches the commit tree. Exit 0 consistent, 1 mismatch, 2 no trailer. A mismatch is a fact about a past commit; it is reported, never repaired by redoing work. | Never blocks anything. Not installable as a hook by `init`. |
-| `inkan doctor` | Folds every outcome file and parses every decision; reports corrupt files, duplicate ids, and dangling decision links. | Never. |
+| `inkan doctor` | Folds every outcome file and parses every decision; reports corrupt files, an outcome whose `begin` id differs from its file name, duplicate decision ids, and dangling decision links. Exit 0 clean, 1 problems. | Never. |
 | `inkan decision add "<title>" --context ... --decision ... [--driver]... [--option]... [--consequence]... [-s status]` | Writes a numbered MADR file. | Missing required sections. |
 | `inkan decision update <id> --status <status> --reason <text>` | Appends a dated history entry to the MADR. Names the open outcome when there is one. Never edits Context or Decision sections. | Unknown id. |
 | `inkan decision list [-s status]` / `show <id>` | Read-only. | Never. |
@@ -132,6 +152,11 @@ event; it can be tracked or untracked in Git, either is a true record of work
 in progress. Because each outcome has its own file, two branches that begin
 different outcomes never touch the same file, and an ordinary Git merge is
 enough to bring them together.
+
+One file per outcome also keeps `log` and `doctor` fast without a cache:
+`node bench/history.js` (`npm run bench`) seeds ten thousand closed outcomes
+and checks that `log -n 3` stays under 50 ms, `log --grep` under 1 s, and
+`doctor` under 2 s.
 
 ## What Inkan will not do
 

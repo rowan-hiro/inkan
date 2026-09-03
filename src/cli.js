@@ -29,8 +29,16 @@ Commands:
       Record dispositions and close an outcome.
   status
       Print every open outcome.
-  log [-n <count>] [--lane <tag>] [<id>]
+  log [-n <count>] [--since <date>] [--grep <regex>] [--status <s>]
+      [--decision <id>] [--lane <tag>] [<id>]
       Print the outcome log, newest first; <id> prints one outcome in full.
+      Filters combine.
+  check [<commit>]
+      Read-only. Reports whether a commit's Inkan-Outcome trailers still
+      match what was recorded. Exit 0 consistent, 1 mismatch, 2 no trailer.
+  doctor
+      Read-only. Reports corrupt outcomes, id mismatches, duplicate
+      decision ids, and dangling decision links. Exit 0 clean, 1 problems.
   decision add "<title>" --context <text> --decision <text> [--driver <text>]...
                [--option <text>]... [--consequence <text>]... [-s <status>]
       Write a numbered MADR record; prints its file path.
@@ -112,6 +120,34 @@ function printStatus(open) {
     return;
   }
   for (const record of open) printRecord(record);
+}
+
+function printCheck(result) {
+  if (result.noTrailer) {
+    console.log(`${result.shortSha}  no Inkan-Outcome trailer`);
+    process.exitCode = 2;
+    return;
+  }
+  for (const r of result.reports) {
+    console.log(`${result.shortSha}  Inkan-Outcome: ${r.id}`);
+    for (const line of r.lines) console.log(`  ${line}`);
+  }
+  if (result.consistent) {
+    console.log('consistent');
+  } else {
+    console.log('mismatch');
+    console.log('a mismatch is a fact about this commit; it is recorded, not repaired');
+    process.exitCode = 1;
+  }
+}
+
+function printDoctor(result) {
+  if (result.problems.length === 0) {
+    console.log(`ok: ${result.outcomeCount} outcomes, ${result.decisionCount} decisions`);
+    return;
+  }
+  for (const p of result.problems) console.log(p);
+  process.exitCode = 1;
 }
 
 function printLogLine(record) {
@@ -245,13 +281,35 @@ function run(argv) {
         break;
       }
       case 'log': {
-        const opts = { n: { type: 'string', short: 'n' }, lane: { type: 'string' } };
+        const opts = {
+          n: { type: 'string', short: 'n' },
+          lane: { type: 'string' },
+          since: { type: 'string' },
+          grep: { type: 'string' },
+          status: { type: 'string' },
+          decision: { type: 'string' },
+        };
         const { values, positionals } = parseArgs({ args: rest, options: opts, allowPositionals: true });
-        if (positionals.length > 1) throw new InkanError('usage: inkan log [-n <count>] [--lane <tag>] [<id>]');
+        if (positionals.length > 1) {
+          throw new InkanError(
+            'usage: inkan log [-n <count>] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]'
+          );
+        }
         const n = values.n !== undefined ? Number(values.n) : undefined;
-        const result = api.log({ root, n, lane: values.lane, id: positionals[0] });
+        const result = api.log({ root, ...values, n, id: positionals[0] });
         if (result.record) printRecord(result.record);
         else for (const record of result.records) printLogLine(record);
+        break;
+      }
+      case 'check': {
+        const { positionals } = parseArgs({ args: rest, allowPositionals: true });
+        if (positionals.length > 1) throw new InkanError('usage: inkan check [<commit>]');
+        printCheck(api.check({ root, commit: positionals[0] }));
+        break;
+      }
+      case 'doctor': {
+        parseArgs({ args: rest });
+        printDoctor(api.doctor({ root }));
         break;
       }
       case 'decision': {
