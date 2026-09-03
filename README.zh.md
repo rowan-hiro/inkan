@@ -2,7 +2,9 @@
 
 [English](README.md) | 简体中文
 
-**先把工作真正要交付的结果 seal 下来，再验证最终落地的内容有没有兑现承诺。**
+**Agent 许下承诺，Inkan 留下凭据。**
+
+*先把工作真正要交付的结果 seal 下来，再验证最终落地的内容有没有兑现承诺。*
 
 Inkan 是一款小巧、零依赖的 CLI，专为让 coding agent 真正参与开发的代码仓库而生。它会可靠地记录每项工作原本要交付什么、意图在过程中如何变化，以及工作结束时作出了怎样的声明；再把最终落地的每个 commit 与这份记录绑定。于是，无论人还是 agent，日后都能清楚回答：这个 commit，真的兑现了当初的承诺吗？
 
@@ -40,7 +42,7 @@ npm install --global inkan
 inkan init
 ```
 
-这条命令会把一段由 Inkan 管理的 protocol 写入 `AGENTS.md`，并创建 `.inkan/`。请把两者一并 commit；从这一刻开始，它们就是代码的一部分。
+这条命令会把一段由 Inkan 管理的 protocol 写入 `AGENTS.md`，并创建 `.inkan/`。请把两者一并 commit；从这一刻开始，它们就是代码的一部分。加上 `--claude`，还会把 `CLAUDE.md` 软链到 `AGENTS.md`，让 Claude Code 从同一个文件读取同一份 policy。
 
 **2. 在动手修改代码之前 seal outcome。**
 
@@ -157,12 +159,14 @@ inkan log -n 3
 
 `inkan init` 会把生成好的 protocol block 写进 coding agent 本来就会读取的 `AGENTS.md`。其中只有五条规则：在 durable change 之前 seal；seal 是事实；先逐项 disposition 并关闭，再把 trailer 放在 commit message 的最后一段完成提交；context 丢失后用 `inkan status` 重新锚定，同时不碰其他 session 的 outcome；关闭即最终状态。
 
-protocol block 带有版本号。`init` 会原地升级由旧版 protocol 生成的 block，但拒绝覆盖经过手工编辑的 block，确保 policy 始终只有一个权威来源。`--lang <tag>` 用来设置 agent 撰写 outcome 文本时应使用的语言。
+protocol block 带有版本号。`init` 会原地升级由旧版 protocol 生成的 block，但拒绝覆盖经过手工编辑的 block，确保 policy 始终只有一个权威来源。`--lang <tag>` 用来设置 agent 撰写 outcome 文本时应使用的语言。`inkan init --claude` 还会把 `CLAUDE.md` 创建为指向 `AGENTS.md` 的 symlink：Claude Code 读的是自己认识的文件名，而 policy 依然只有一份，不是副本。
 
 对于支持 skill 文件的 agent，Inkan 内置的 `use-inkan` skill 可以帮助 agent 定位 Inkan 并重新锚定。它只会指向 `AGENTS.md`，不会复述或扩展 protocol。
 
 ```sh
-inkan skill install --target <skills-dir>
+inkan skill install                 # .agents/skills/use-inkan，大多数 agent 读取的路径
+inkan skill install --claude        # .claude/skills/use-inkan，给 Claude Code
+inkan skill install --target <dir>  # 其他任何位置，包括全局目录
 ```
 
 ## 让决策与代码同行
@@ -197,7 +201,7 @@ Inkan 本身就是这样构建的。仓库从第二个 commit 开始，每个 co
 
 | 命令 | 作用 | 何时拒绝执行 |
 |---|---|---|
-| `inkan init [--lang <tag>]` | 写入或升级 `AGENTS.md` 中由 Inkan 管理的 block；创建 `.inkan/`。 | block 曾被手工编辑。 |
+| `inkan init [--lang <tag>] [--claude]` | 写入或升级 `AGENTS.md` 中由 Inkan 管理的 block；创建 `.inkan/`。`--claude` 还会把 `CLAUDE.md` 软链到 `AGENTS.md`。 | block 曾被手工编辑；已存在一个不是该 symlink 的 `CLAUDE.md`。 |
 | `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]` | Seal 一个新 outcome，并打印其 id。其他 open outcome 会在 stderr 的 notice 中被点名，但不会受到任何改动。 | 永不拒绝。 |
 | `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [<id>]` | 追加 amendment，并打印新的 contract hash。 | 没有 reason；没有 open outcome；存在多个 open outcome，却没有用 `<id>` 明确指定目标。 |
 | `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | 记录 disposition 并关闭 outcome。状态由结果推导：全部 met 为 `completed`，任一 unmet 为 `partial`。打印 commit trailer 行。 | 仍生效的标准缺少 disposition（以 `-s abandoned` 关闭时除外）；没有 note。 |
@@ -208,7 +212,7 @@ Inkan 本身就是这样构建的。仓库从第二个 commit 开始，每个 co
 | `inkan decision add "<title>" --context <text> --decision <text> [--driver <text>]... [--option <text>]... [--consequence <text>]... [-s <status>]` | 写入一个带编号的 MADR 文件，并打印其路径。 | 缺少必要 section。 |
 | `inkan decision update <id> --status <status> --reason <text>` | 追加一条带日期的历史记录，并设置新状态。有 open outcome 时会指出它的名称。永不编辑 Context 或 Decision Outcome。 | id 或 status 未知。 |
 | `inkan decision list [-s <status>]` / `inkan decision show <id>` | 只读。`show` 接受 `2`、`02` 或 `0002`。 | 永不拒绝。 |
-| `inkan skill install --target <dir>` | 把内置 skill 复制到 `<dir>/use-inkan/`，并打印目标路径。 | 目标已存在，且与内置 skill 不同。 |
+| `inkan skill install [--claude \| --target <dir>]` | 把内置 skill 复制到仓库根目录下的 `.agents/skills/use-inkan/`；加 `--claude` 时复制到 `.claude/skills/use-inkan/`；指定 `--target` 时复制到 `<dir>/use-inkan/`。打印目标路径。 | 目标已存在，且与内置 skill 不同；`--claude` 与 `--target` 同时给出。 |
 
 Decision status 包括 `proposed`、`accepted`、`rejected`、`deferred`、`deprecated` 和 `superseded`。
 
@@ -228,7 +232,7 @@ contract hash 是一个 SHA-256，计算范围包括 outcome 文本、带 withdr
 
 ## 当前状态
 
-Inkan 0.1.0 是首个正式版本，也是 DriftSeal 继任者的一次从零重构。本版本有意没有加入 DriftSeal 历史记录 importer、MCP server，以及面向特定 agent host 的 installer。这些都属于 adapter，可以后续补上，而无需改变记录格式。Lane 目前只作为 `begin` 时可选的归档 tag，以及 `log` 的 filter。
+Inkan 0.1.0 是首个正式版本，也是 DriftSeal 继任者的一次从零重构。本版本有意没有加入 DriftSeal 历史记录 importer 和 MCP server。这些都属于 adapter，可以后续补上，而无需改变记录格式。唯一针对特定 host 的便利是 `init` 和 `skill install` 的 `--claude`；其他 host 直接读取 `AGENTS.md` 和 `.agents/skills`，无需任何适配。Lane 目前只作为 `begin` 时可选的归档 tag，以及 `log` 的 filter。
 
 ## License
 

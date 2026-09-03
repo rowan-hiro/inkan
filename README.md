@@ -2,7 +2,9 @@
 
 [简体中文](README.zh.md)
 
-**Seal what the work is meant to deliver. Then check that what landed is what was sealed.**
+**Agents make promises. Inkan keeps the receipts.**
+
+*Seal what the work is meant to deliver. Then check that what landed is what was sealed.*
 
 Inkan is a small, zero-dependency CLI for repositories where coding agents
 do real work. It keeps a trustworthy record of what each piece of work was
