@@ -62,3 +62,9 @@ Protocol 5 implements 0015: close with dispositions and commit the record with t
 Status: accepted -> accepted
 
 Protocol 6 implements 0016: agents include the end output trailer in the final paragraph of a landing commit. Reading that trailer supplies context only and creates no duty to verify delivery or repair missing references. init upgrades generated protocols 1 through 5 while preserving refusal of hand-edited blocks. No check command, Git execution, hook, or mandatory doctor step is added.
+
+### 2026-09-09T03:27:48.023Z, outcome 2026-09-09-0326-dsp9
+
+Status: accepted -> accepted
+
+Protocol 7 (2026-09-09): the block states policy only. It names each command and what a call must carry (one observable criterion at a time, every binding decision record, a disposition for every live criterion, a reason for every amendment) and sends flag-level syntax to inkan help, so a CLI change no longer bumps the protocol. The Inkan-Outcome trailer placement rule from 0016 stays in the block because git parsing, not usage, dictates it. Hiro asked whether usage guidance belonged in the skill; it went to inkan help instead, because the skill is neither guaranteed present nor generated from the code, and 0008 still forbids adapters restating the protocol. init upgrades generated protocols 1 through 6 and still refuses hand-edited blocks.

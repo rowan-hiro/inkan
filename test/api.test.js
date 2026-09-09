@@ -87,7 +87,7 @@ test('init --lang upgrades only the language parts of an unmodified block', () =
 });
 
 test('init upgrades a block generated under an earlier protocol and still refuses hand edits', () => {
-  for (const version of [1, 2, 3, 4, 5]) {
+  for (const version of [1, 2, 3, 4, 5, 6]) {
     const root = tmpDir();
     const agentsFile = path.join(root, 'AGENTS.md');
     const marker = new RegExp(`<!-- inkan-protocol: ${version} -->`);
@@ -96,8 +96,11 @@ test('init upgrades a block generated under an earlier protocol and still refuse
     const result = api.init({ root });
     assert.equal(result.changed, true);
     const agents = fs.readFileSync(agentsFile, 'utf8');
-    assert.match(agents, /<!-- inkan-protocol: 6 -->/);
+    assert.match(agents, /<!-- inkan-protocol: 7 -->/);
     assert.match(agents, /Commit the outcome record with the work/);
+    // Protocol 7 states policy only; flag-level syntax lives in `inkan help`.
+    assert.match(agents, /`inkan help` gives the command syntax/);
+    assert.doesNotMatch(agents, /--accept|--met|--unmet|--reason|--decision|--lane|--status/);
     assert.match(agents, /Include the printed `Inkan-Outcome: <id>` trailer in the final paragraph/);
     assert.match(agents, /When reading history, use commit trailers only as references/);
     assert.match(agents, /Missing trailers or unavailable referenced records are missing information/);

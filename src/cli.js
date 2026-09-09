@@ -22,12 +22,20 @@ Commands:
       Create .inkan/ and write the agent protocol block into AGENTS.md.
       --claude also links CLAUDE.md to AGENTS.md.
   begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]
-      Seal a new outcome; prints its id.
+      Seal a new outcome; prints its id. Repeat --accept once per
+      observable criterion; they are numbered from 1 in that order.
+      Repeat --decision once per decision record the work is bound by.
+      Use --lane only where the repository already files outcomes by lane.
   amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]...
         [--decision <id>]... [<id>]
       Append an amendment to the open outcome; prints the new contract hash.
+      --reason is required. Added criteria continue the numbering;
+      --withdraw takes a criterion number. The original text is kept.
   end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>
-      Record dispositions and close an outcome; print its commit reference.
+      Record dispositions and close an outcome; prints the Inkan-Outcome
+      trailer to put in the landing commit. Repeat --met or --unmet once
+      per live criterion number; every live criterion needs one. A value
+      may carry a note as "<n>: <text>". --note is required.
   status
       Print every open outcome.
   log [-n <count>] [--since <date>] [--grep <regex>] [--status <s>]

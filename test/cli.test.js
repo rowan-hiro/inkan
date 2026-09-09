@@ -139,6 +139,10 @@ test('check is absent and doctor remains an optional diagnostic', () => {
   const help = run(INKAN, ['help'], dir);
   assert.doesNotMatch(help.stdout, /  check /);
   assert.match(help.stdout, /  doctor/);
+  // Per-flag usage that protocol 7 no longer carries lives here.
+  assert.match(help.stdout, /Repeat --accept once per/);
+  assert.match(help.stdout, /Repeat --met or --unmet once/);
+  assert.match(help.stdout, /every live criterion needs one/);
   const removed = run(INKAN, ['check'], dir);
   assert.equal(removed.status, 1);
   assert.match(removed.stderr, /unknown command "check"/);

@@ -203,7 +203,9 @@ seal is a fact; close with dispositions, then commit the record with the
 work and include the outcome trailer; re-anchor with `inkan status` after
 context loss and leave other sessions' outcomes alone; closed outcomes are
 final and commit references are informational when reading history.
-The block carries a protocol number. `init`
+The block states policy only. It names the commands and what each call
+must carry, and leaves flag-level syntax to `inkan help`, so a CLI change
+does not bump the protocol. The block carries a protocol number. `init`
 upgrades a block it generated under an earlier protocol in place and refuses
 to overwrite a block that was edited by hand, so the policy lives in exactly
 one place. `--lang <tag>` sets the language agents should write outcome
