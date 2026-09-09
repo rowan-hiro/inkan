@@ -651,6 +651,15 @@ function writeProtocol(dir, lang) {
     fs.writeFileSync(agentsFile, content, 'utf8');
     return { root: dir, agentsFile, changed: true };
   }
+  // A block stamped with a protocol this tool does not know yet was written
+  // by a newer Inkan, not by hand. Say so and leave it alone.
+  const stamped = found.text.match(/<!-- inkan-protocol: (\d+) -->/);
+  const foundVersion = stamped ? Number(stamped[1]) : 0;
+  if (foundVersion > PROTOCOL_VERSION) {
+    throw new InkanError(
+      `${AGENTS_FILENAME} inkan block is protocol ${foundVersion}; this Inkan knows up to ${PROTOCOL_VERSION}. Upgrade Inkan; refusing to overwrite it`,
+    );
+  }
   throw new InkanError(`${AGENTS_FILENAME} inkan block was edited by hand; refusing to overwrite it`);
 }
 

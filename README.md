@@ -208,7 +208,8 @@ must carry, and leaves flag-level syntax to `inkan help`, so a CLI change
 does not bump the protocol. The block carries a protocol number. `init`
 upgrades a block it generated under an earlier protocol in place and refuses
 to overwrite a block that was edited by hand, so the policy lives in exactly
-one place. `--lang <tag>` sets the language agents should write outcome
+one place. A block stamped with a protocol newer than the installed Inkan
+is reported as such, with a prompt to upgrade the tool, not as a hand edit. `--lang <tag>` sets the language agents should write outcome
 prose in. `inkan init --claude` also creates `CLAUDE.md` as a symlink to
 `AGENTS.md`: Claude Code reads its own file name, and there is still one
 policy, not a copy.

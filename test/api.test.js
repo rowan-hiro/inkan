@@ -116,6 +116,20 @@ test('init upgrades a block generated under an earlier protocol and still refuse
   }
 });
 
+test('init refuses a block from a newer protocol with an upgrade message, not the hand-edit one', () => {
+  const root = tmpDir();
+  const agentsFile = path.join(root, 'AGENTS.md');
+  // Stamp the current block as a future protocol: a newer Inkan wrote it.
+  const future = api.protocolBlock('en').replace(/<!-- inkan-protocol: \d+ -->/, '<!-- inkan-protocol: 99 -->');
+  const content = `# Agent instructions\n\n${future}\n`;
+  fs.writeFileSync(agentsFile, content);
+  assert.throws(() => api.init({ root }), /protocol 99; this Inkan knows up to \d+\. Upgrade Inkan/);
+  assert.throws(() => api.init({ root }), (e) => !/edited by hand/.test(e.message));
+  assert.equal(fs.readFileSync(agentsFile, 'utf8'), content);
+  // A hand edit inside a future block is still a future block: the tool
+  // cannot tell, and upgrading Inkan is still the right next step.
+});
+
 // --- begin ----------------------------------------------------------------
 
 test('begin refuses outside an Inkan repository', () => {

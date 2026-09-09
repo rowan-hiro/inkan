@@ -68,3 +68,9 @@ Protocol 6 implements 0016: agents include the end output trailer in the final p
 Status: accepted -> accepted
 
 Protocol 7 (2026-09-09): the block states policy only. It names each command and what a call must carry (one observable criterion at a time, every binding decision record, a disposition for every live criterion, a reason for every amendment) and sends flag-level syntax to inkan help, so a CLI change no longer bumps the protocol. The Inkan-Outcome trailer placement rule from 0016 stays in the block because git parsing, not usage, dictates it. Hiro asked whether usage guidance belonged in the skill; it went to inkan help instead, because the skill is neither guaranteed present nor generated from the code, and 0008 still forbids adapters restating the protocol. init upgrades generated protocols 1 through 6 and still refuses hand-edited blocks.
+
+### 2026-09-09T07:43:46.955Z, outcome 2026-09-09-0743-h84b
+
+Status: accepted -> accepted
+
+init now tells a block from a newer protocol apart from a hand edit. Found on 2026-09-09 when a globally installed 0.2.0 met this repository's protocol 7 block and reported it as edited by hand. A stamped protocol number above the tool's own now yields a message naming both numbers and asking to upgrade Inkan; the file is still left untouched. Hand-edit refusal for known protocols is unchanged. Hiro framed this as Postel's law: read liberally, write conservatively.
