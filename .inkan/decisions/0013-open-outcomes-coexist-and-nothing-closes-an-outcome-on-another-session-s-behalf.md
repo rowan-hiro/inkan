@@ -47,3 +47,9 @@ Hiro added a second reason on 2026-09-03: a forced close also invites an agent t
 Status: accepted -> accepted
 
 Hiro added on 2026-09-03: an agent that meets an open outcome that is not its work does not judge it, but stops, tells the person it is there, and asks whether the work should run in its own git worktree. Protocol 4 carries this: rule 1 runs status before begin and defers to rule 4; rule 4 states the reminder.
+
+### 2026-09-09T02:45:29.944Z, outcome 2026-09-09-0243-hd24
+
+Status: accepted -> accepted
+
+0015 removes whole-working-tree capture and commit comparison. Protocol 5 keeps the instruction to discuss a separate git worktree before beginning beside another session, because concurrent edits still need isolation. The old tree-mismatch consequence no longer applies; open outcomes still coexist and no session closes another session's work.

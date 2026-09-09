@@ -38,3 +38,9 @@ Size is reviewed, not capped. The 1,500-line target is retired as a hard line. G
 * The size question in review is which decision a change serves, not whether it is under a number
 
 ## Decision History
+
+### 2026-09-09T02:45:29.938Z, outcome 2026-09-09-0243-hd24
+
+Status: accepted -> accepted
+
+0015 removes src/git.js and all runtime child-process calls along with delivery auditing. Git is no longer required to record an outcome. The zero-dependency library and thin CLI structure remain.

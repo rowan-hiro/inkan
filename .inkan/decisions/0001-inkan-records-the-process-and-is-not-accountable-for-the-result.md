@@ -70,3 +70,9 @@ Superseded in part by 0013: the consequence that closing over an open outcome is
 Status: accepted -> accepted
 
 Two framings added by Hiro on 2026-09-03, after building Inkan with itself for a day. First, why the record lives in the repository at all: an assistant's project memory does not carry across agents and is awkward to keep in sync, so the repository has to hold the durable record, and reasoning like this belongs in these decisions rather than in any one agent's memory. Second, what the boundary does for the agent: because every claim is a recorded fact with a read-only check behind it, an agent does not have to defend itself by speculating or second-guessing the person; it runs the check and reads the result. This creates a matter-of-fact environment, which is friendlier to agents and prevents overthinking. Decision unchanged.
+
+### 2026-09-09T02:45:29.921Z, outcome 2026-09-09-0243-hd24
+
+Status: accepted -> accepted
+
+0015 narrows the boundary at Hiro's request. Inkan records what was promised, how it changed, and what was declared at close; it no longer asks whether a commit matches the promise. The three-question framing and the later reference to a read-only check behind every claim no longer imply a delivery audit. The repository owns the durable record and closed declarations remain final. doctor stays optional for damaged files and references.

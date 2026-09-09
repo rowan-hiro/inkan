@@ -87,7 +87,7 @@ test('init --lang upgrades only the language parts of an unmodified block', () =
 });
 
 test('init upgrades a block generated under an earlier protocol and still refuses hand edits', () => {
-  for (const version of [1, 2, 3]) {
+  for (const version of [1, 2, 3, 4]) {
     const root = tmpDir();
     const agentsFile = path.join(root, 'AGENTS.md');
     const marker = new RegExp(`<!-- inkan-protocol: ${version} -->`);
@@ -96,8 +96,9 @@ test('init upgrades a block generated under an earlier protocol and still refuse
     const result = api.init({ root });
     assert.equal(result.changed, true);
     const agents = fs.readFileSync(agentsFile, 'utf8');
-    assert.match(agents, /<!-- inkan-protocol: 4 -->/);
-    assert.match(agents, /last paragraph of the message/);
+    assert.match(agents, /<!-- inkan-protocol: 5 -->/);
+    assert.match(agents, /Commit the outcome record with the work/);
+    assert.doesNotMatch(agents, /Inkan-Outcome|doctor|inkan check/);
     assert.match(agents, /belongs to another session/);
     assert.match(agents, /own git worktree/);
     assert.doesNotMatch(agents, marker);
@@ -121,20 +122,15 @@ test('begin requires a non-empty outcome', () => {
   assert.throws(() => api.begin({ root, outcome: '  ' }), InkanError);
 });
 
-test('begin seals an outcome and records head', () => {
+test('begin seals an outcome without capturing Git metadata', () => {
   const root = repo({ withGit: true });
   fs.writeFileSync(path.join(root, 'a.txt'), 'x');
   commitAll(root, 'first');
   const result = api.begin({ root, outcome: 'Ship it', accept: ['one', 'two'], lane: 'backend' });
   assert.match(result.id, /^\d{4}-\d{2}-\d{2}-\d{4}-[0-9a-z]{4}$/);
   assert.equal(result.lane, 'backend');
-  assert.match(result.head, /^[0-9a-f]{40}$/);
-});
-
-test('begin without git records a null head', () => {
-  const root = repo();
-  const result = api.begin({ root, outcome: 'Ship it', accept: ['one'] });
-  assert.equal(result.head, null);
+  assert.equal(Object.hasOwn(result, 'head'), false);
+  assert.equal(Object.hasOwn(store.readOutcomeEvents(root, result.id)[0], 'head'), false);
 });
 
 test('begin allows another open outcome and names it without touching it', () => {
@@ -262,13 +258,31 @@ test('end -s abandoned needs no dispositions', () => {
   assert.equal(api.log({ root, id: begun.id }).record.dispositions.length, 0);
 });
 
-test('end records tree and head, null without git', () => {
+test('begin, amend, and end record declarations without Git metadata', () => {
+  const root = repo({ withGit: true });
+  fs.writeFileSync(path.join(root, 'a.txt'), 'before');
+  commitAll(root, 'first');
+  const begun = api.begin({ root, outcome: 'Change the example', accept: ['the example changes'] });
+  api.amend({ root, reason: 'Include a follow-up', accept: ['the follow-up is recorded'] });
+  fs.writeFileSync(path.join(root, 'a.txt'), 'after');
+  api.end({ root, met: ['1', '2'], note: 'done' });
+  const events = store.readOutcomeEvents(root, begun.id);
+  assert.deepEqual(events.map((event) => event.type), ['begin', 'amend', 'end']);
+  for (const event of events) {
+    assert.equal(Object.hasOwn(event, 'tree'), false);
+    assert.equal(Object.hasOwn(event, 'head'), false);
+  }
+  assert.equal(api.log({ root, id: begun.id }).record.status, 'completed');
+});
+
+test('optional doctor diagnostics do not gate closure', () => {
   const root = repo();
-  api.begin({ root, outcome: 'x', accept: ['a'] });
+  api.begin({ root, outcome: 'Ship it', accept: ['a'] });
+  // An unrelated damaged decision file is a diagnostic, not a closure dependency.
+  fs.writeFileSync(path.join(store.decisionsDir(root), '0099-broken.md'), 'not a decision');
+  assert.equal(api.doctor({ root }).problems.length, 1);
   const result = api.end({ root, met: ['1'], note: 'done' });
-  const record = api.log({ root, id: result.id }).record;
-  assert.equal(record.tree, null);
-  assert.equal(record.head, null);
+  assert.equal(result.status, 'completed');
 });
 
 test('end refuses a second close of the same outcome', () => {

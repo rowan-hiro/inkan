@@ -1,5 +1,5 @@
 // Package smoke: pack the tarball, install it into a throwaway consumer, and
-// drive the installed `inkan` and `ink` through init, begin, end, check, and
+// drive the installed `inkan` and `ink` through init, begin, end, and
 // log in a scratch git repository. Run under npm (`npm run test:package`) so
 // the same npm that packs is the one that installs.
 
@@ -68,7 +68,6 @@ try {
     'src/cli.js',
     'src/decisions.js',
     'src/fold.js',
-    'src/git.js',
     'src/store.js',
     'skills/use-inkan/SKILL.md',
     'README.md',
@@ -113,10 +112,9 @@ try {
   assert.match(runInstalled('inkan', ['status']), /packaged smoke/);
   fs.writeFileSync(path.join(sandbox, 'smoke.txt'), 'done\n');
   const ended = runInstalled('inkan', ['end', '--met', '1', '--note', 'packaged smoke']);
-  assert.match(ended, new RegExp(`Inkan-Outcome: ${id}`));
+  assert.equal(ended, `${id} completed\n`);
   git(['add', '-A']);
-  git(['commit', '-q', '-m', `feat: smoke\n\nInkan-Outcome: ${id}\n`]);
-  assert.match(runInstalled('inkan', ['check', 'HEAD']), /consistent/);
+  git(['commit', '-q', '-m', 'feat: smoke']);
   assert.match(runInstalled('ink', ['log', '-n', '1']), new RegExp(`^${id}  completed  packaged smoke`));
 
   process.stdout.write(`package smoke passed: ${packed[0].filename}\n`);

@@ -63,7 +63,6 @@ export function seed(root, count, { durable = false } = {}) {
       criteria: criteria.map((c) => c.text),
       decisions: [],
       lane,
-      head: null,
     };
 
     let amendEvent = null;
@@ -81,7 +80,6 @@ export function seed(root, count, { durable = false } = {}) {
         criteria: [addition],
         withdraw: [],
         decisions: [],
-        head: null,
       };
     }
 
@@ -95,8 +93,6 @@ export function seed(root, count, { durable = false } = {}) {
       dispositions: criteria.map((c, idx) => ({ criterion: idx + 1, met: true })),
       note: `Closed synthetically for benchmarking (${i}).`,
       contractHash,
-      tree: null,
-      head: null,
     };
 
     if (durable) {

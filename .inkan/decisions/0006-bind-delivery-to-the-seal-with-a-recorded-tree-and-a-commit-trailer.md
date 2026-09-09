@@ -4,7 +4,7 @@ Date: 2026-09-03
 
 ## Status
 
-Accepted
+Superseded
 
 ## Context and Problem Statement
 
@@ -45,3 +45,9 @@ At `end`, before the end line is written, Inkan records `tree` with the temporar
 Status: accepted -> accepted
 
 Framing added after the README rewrite, in Hiro's words: Inkan and git are two systems that trust each other, not two systems that question each other. Git is trusted for what landed; the tree hash and the trailer are its facts. Inkan is trusted for what was declared; the seal and the dispositions are its facts. check places the two side by side and re-derives neither. DriftSeal became a loop because it did not trust git for what landed and re-ran the work to find out, so git could not trust it either. Decision unchanged.
+
+### 2026-09-09T02:45:29.914Z, outcome 2026-09-09-0243-hd24
+
+Status: accepted -> superseded
+
+Superseded by 0015 at Hiro's request: remove delivery auditing rather than repair it. check, working-tree snapshots, Git HEAD capture, and commit trailer requirements are removed. A closed declaration creates no later obligation to prove delivery again.

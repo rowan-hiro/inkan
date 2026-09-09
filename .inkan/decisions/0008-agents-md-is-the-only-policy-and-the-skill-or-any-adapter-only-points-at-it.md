@@ -50,3 +50,9 @@ Protocol 2 (2026-09-03): step 3 now says the Inkan-Outcome trailer goes in the l
 Status: accepted -> accepted
 
 Superseded in part by 0014: init --claude and the .agents/skills default with --claude are the host conveniences that ship. Still no MCP server and no hooks, and CLAUDE.md is a symlink to the one policy, not a copy.
+
+### 2026-09-09T02:45:29.933Z, outcome 2026-09-09-0243-hd24
+
+Status: accepted -> accepted
+
+Protocol 5 implements 0015: close with dispositions and commit the record with the work, without an Inkan-Outcome trailer or delivery audit. Separate-worktree guidance now explains isolation of concurrent edits rather than tree snapshots. init upgrades generated protocols 1 through 4 and still refuses hand-edited blocks. doctor is optional and is not part of the protocol.

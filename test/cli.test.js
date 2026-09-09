@@ -19,17 +19,6 @@ function run(bin, args, cwd) {
   return { stdout: result.stdout, stderr: result.stderr, status: result.status };
 }
 
-function gitInit(dir) {
-  spawnSync('git', ['init', '-q'], { cwd: dir });
-  spawnSync('git', ['config', 'user.email', 'test@example.com'], { cwd: dir });
-  spawnSync('git', ['config', 'user.name', 'Test'], { cwd: dir });
-}
-
-function commitAll(dir, message) {
-  spawnSync('git', ['add', '-A'], { cwd: dir });
-  spawnSync('git', ['commit', '-q', '-m', message], { cwd: dir });
-}
-
 function normalize(output) {
   return output
     .replace(/\d{4}-\d{2}-\d{2}-(?:\d{4}-)?[0-9a-z]{4}/g, '<ID>')
@@ -108,9 +97,7 @@ test('full begin/amend/end/status/log flow through the CLI', () => {
 
   const end = run(INKAN, ['end', '--met', '1', '--met', '2', '--unmet', '3: later', '--note', 'partially shipped'], dir);
   assert.equal(end.status, 0);
-  const [firstLine, secondLine] = end.stdout.trim().split('\n');
-  assert.equal(firstLine, `${id} partial`);
-  assert.equal(secondLine, `Inkan-Outcome: ${id}`);
+  assert.equal(end.stdout, `${id} partial\n`);
 
   const log = run(INKAN, ['log'], dir);
   assert.equal(log.status, 0);
@@ -146,37 +133,25 @@ test('inkan and ink produce identical output for the same command sequence', () 
   assert.equal(fromInkan, fromInk);
 });
 
-test('check and doctor exit codes through the binary', () => {
+test('check is absent and doctor remains an optional diagnostic', () => {
   const dir = tmpDir();
-  gitInit(dir);
   run(INKAN, ['init'], dir);
-  fs.writeFileSync(path.join(dir, 'a.txt'), 'hello');
-  commitAll(dir, 'init');
-
-  const noTrailer = run(INKAN, ['check'], dir);
-  assert.equal(noTrailer.status, 2);
-  assert.match(noTrailer.stdout, /no Inkan-Outcome trailer/);
+  const help = run(INKAN, ['help'], dir);
+  assert.doesNotMatch(help.stdout, /  check /);
+  assert.match(help.stdout, /  doctor/);
+  const removed = run(INKAN, ['check'], dir);
+  assert.equal(removed.status, 1);
+  assert.match(removed.stderr, /unknown command "check"/);
 
   const id = run(INKAN, ['begin', 'Ship it', '--accept', 'a'], dir).stdout.trim();
-  run(INKAN, ['end', '--met', '1', '--note', 'done'], dir);
-  commitAll(dir, `feat: ship it\n\nInkan-Outcome: ${id}`);
-
-  const consistent = run(INKAN, ['check'], dir);
-  assert.equal(consistent.status, 0);
-  assert.match(consistent.stdout, /\nconsistent\n$/);
+  const ended = run(INKAN, ['end', '--met', '1', '--note', 'done'], dir);
+  assert.equal(ended.status, 0);
+  assert.equal(ended.stdout, `${id} completed\n`);
 
   const cleanDoctor = run(INKAN, ['doctor'], dir);
   assert.equal(cleanDoctor.status, 0);
   assert.equal(cleanDoctor.stdout.trim(), 'ok: 1 outcomes, 0 decisions');
 
-  // A source file changed after `end`, then committed: check reports a tree mismatch.
-  fs.writeFileSync(path.join(dir, 'a.txt'), 'changed after end');
-  commitAll(dir, `chore: change a.txt\n\nInkan-Outcome: ${id}`);
-  const mismatch = run(INKAN, ['check'], dir);
-  assert.equal(mismatch.status, 1);
-  assert.match(mismatch.stdout, /\nmismatch\n/);
-
-  // A corrupt outcome file on disk: doctor reports it and exits 1.
   fs.appendFileSync(path.join(dir, '.inkan', 'outcomes', `${id}.jsonl`), 'not json\n');
   const brokenDoctor = run(INKAN, ['doctor'], dir);
   assert.equal(brokenDoctor.status, 1);

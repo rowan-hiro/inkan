@@ -50,3 +50,9 @@ npm refused the unscoped name on 2026-09-03: E403, package name too similar to e
 Status: accepted -> accepted
 
 Scope changed to @rowan-hiro/inkan on 2026-09-03, matching the GitHub owner rowan-hiro. Everything else in the previous entry stands.
+
+### 2026-09-09T02:45:29.928Z, outcome 2026-09-09-0243-hd24
+
+Status: accepted -> accepted
+
+0015 removes the Inkan-Outcome trailer from new output and protocol requirements. Existing trailers remain historical facts. Product, package, command, directory, and skill names are unchanged.

@@ -14,7 +14,6 @@ function begin(overrides = {}) {
     criteria: ['first', 'second'],
     decisions: [],
     lane: null,
-    head: null,
     ...overrides,
   };
 }
@@ -30,7 +29,6 @@ function amend(overrides = {}) {
     criteria: [],
     withdraw: [],
     decisions: [],
-    head: null,
     ...overrides,
   };
 }
@@ -49,8 +47,6 @@ function endWith(events, overrides = {}) {
     ],
     note: 'done',
     contractHash: partial.contractHash,
-    tree: null,
-    head: null,
     ...overrides,
   };
 }
@@ -194,4 +190,19 @@ test('a tampered contract hash is detected as corruption', () => {
 
 test('a file with no events is corrupt', () => {
   assert.throws(() => fold([], FILE), /no events/);
+});
+
+test('legacy Git metadata remains readable without changing the events', () => {
+  const oldHead = '1'.repeat(40);
+  const oldTree = '2'.repeat(40);
+  const events = [begin({ head: oldHead }), amend({ head: oldHead })];
+  events.push(endWith(events, { head: oldHead, tree: oldTree }));
+  const before = JSON.stringify(events);
+  const record = fold(events, FILE);
+  assert.equal(record.beginHead, oldHead);
+  assert.equal(record.amendments[0].head, oldHead);
+  assert.equal(record.head, oldHead);
+  assert.equal(record.tree, oldTree);
+  assert.equal(record.status, 'completed');
+  assert.equal(JSON.stringify(events), before);
 });

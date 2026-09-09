@@ -8,7 +8,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as store from './store.js';
 import { fold, computeContractHash } from './fold.js';
-import * as git from './git.js';
 import * as decisions from './decisions.js';
 
 export class InkanError extends Error {
@@ -116,7 +115,6 @@ export function begin({ root, outcome, accept = [], decision = [], lane }) {
   // Other open outcomes belong to whoever began them. They are reported,
   // never closed or otherwise touched here (decision 0013).
   const openAlongside = openRecords(resolvedRoot).map((r) => ({ id: r.id, outcome: r.outcome }));
-  const head = git.head(resolvedRoot);
   const existingIds = store.listOutcomeIds(resolvedRoot);
   const resolvedLane = lane ?? null;
 
@@ -131,11 +129,10 @@ export function begin({ root, outcome, accept = [], decision = [], lane }) {
       criteria: accept,
       decisions: decision,
       lane: resolvedLane,
-      head,
     };
     try {
       store.createOutcomeFile(resolvedRoot, id, event);
-      return { id, outcome, criteria: accept, decisions: decision, lane: resolvedLane, head, openAlongside };
+      return { id, outcome, criteria: accept, decisions: decision, lane: resolvedLane, openAlongside };
     } catch (err) {
       existingIds.push(id);
       if (attempt === 4) throw err;
@@ -159,7 +156,6 @@ export function amend({ root, id, reason, addition, accept = [], withdraw = [], 
     const criterion = record.criteria[n - 1];
     if (!criterion || criterion.withdrawn) throw new InkanError(`cannot withdraw unknown or already-withdrawn criterion ${n}`);
   }
-  const head = git.head(resolvedRoot);
   store.appendEvent(resolvedRoot, record.id, {
     v: 1,
     type: 'amend',
@@ -170,7 +166,6 @@ export function amend({ root, id, reason, addition, accept = [], withdraw = [], 
     criteria: accept,
     withdraw: withdrawIndexes,
     decisions: decision,
-    head,
   });
   const updated = loadRecord(resolvedRoot, record.id);
   return { id: record.id, contractHash: computeContractHash(updated) };
@@ -213,8 +208,6 @@ export function end({ root, id, met = [], unmet = [], status, note }) {
     finalStatus = dispositions.some((d) => !d.met) ? 'partial' : 'completed';
   }
   const contractHash = computeContractHash(record);
-  const tree = git.treeHash(resolvedRoot);
-  const head = git.head(resolvedRoot);
   store.appendEvent(resolvedRoot, record.id, {
     v: 1,
     type: 'end',
@@ -224,8 +217,6 @@ export function end({ root, id, met = [], unmet = [], status, note }) {
     dispositions,
     note,
     contractHash,
-    tree,
-    head,
   });
 
   return { id: record.id, status: finalStatus };
@@ -296,61 +287,9 @@ export function log({ root, n, lane, since, grep, status, decision, id }) {
   return { records: records.slice(0, limit) };
 }
 
-// --- check / doctor ---------------------------------------------------------
+// --- doctor ----------------------------------------------------------------
 
-const OUTCOME_FILE_PREFIX = '.inkan/outcomes/';
-
-/** The four facts for one `Inkan-Outcome` trailer value, per decision 0006. */
-function checkTrailer(root, sha, id) {
-  const filePath = `${OUTCOME_FILE_PREFIX}${id}.jsonl`;
-  const raw = git.showFile(root, sha, filePath);
-  if (raw === null) return { id, lines: ['outcome: missing from commit'], ok: false };
-
-  let events;
-  try {
-    events = store.parseOutcomeEvents(raw, `${sha}:${filePath}`);
-  } catch (err) {
-    const firstLine = String(err.message).split('\n')[0];
-    return { id, lines: [`outcome: present, unreadable (${firstLine})`], ok: false };
-  }
-  const endEvent = events.find((e) => e && e.type === 'end');
-  if (!endEvent) return { id, lines: ['outcome: present, open'], ok: false };
-
-  let hashOk = true;
-  try {
-    fold(events, `${sha}:${filePath}`);
-  } catch {
-    hashOk = false;
-  }
-  const lines = [`outcome: present, closed (${endEvent.status})`, hashOk ? 'hash: matches refold' : 'hash: does not match refold'];
-
-  let treeOk = true;
-  if (endEvent.tree == null) {
-    lines.push('tree: not recorded');
-  } else if (git.treeMatchesCommit(root, endEvent.tree, sha)) {
-    lines.push('tree: matches commit tree');
-  } else {
-    lines.push('tree: differs from commit tree');
-    treeOk = false;
-  }
-
-  return { id, lines, ok: hashOk && treeOk };
-}
-
-/** Read-only report on whether a commit's `Inkan-Outcome` trailers stay faithful to what it recorded. */
-export function check({ root, commit }) {
-  const resolvedRoot = resolveRoot(root);
-  const ref = commit ?? 'HEAD';
-  const sha = git.revParse(resolvedRoot, ref);
-  if (!sha) throw new InkanError(`unknown commit "${ref}"`);
-  const shortSha = git.shortSha(resolvedRoot, sha);
-  const trailerIds = git.trailerValues(resolvedRoot, sha);
-  if (trailerIds.length === 0) return { shortSha, noTrailer: true };
-  const reports = trailerIds.map((id) => checkTrailer(resolvedRoot, sha, id));
-  return { shortSha, reports, consistent: reports.every((r) => r.ok) };
-}
-
-/** Read-only report: folds every outcome, parses every decision, and cross-checks ids and links. */
+/** Optional file diagnostic: folds outcomes, parses decisions, and reports id/link problems. */
 export function doctor({ root }) {
   const resolvedRoot = resolveRoot(root);
   const problems = [];
@@ -519,6 +458,7 @@ Outcome log: \`.inkan/outcomes/<id>.jsonl\`, one append-only file per outcome. C
 ${END_MARKER}`;
 }
 
+// Protocol 4, frozen verbatim for upgrades. Never edit.
 function protocolBlockV4(lang) {
   return `${START_MARKER}
 <!-- inkan-protocol: 4 -->
@@ -540,7 +480,28 @@ Outcome log: \`.inkan/outcomes/<id>.jsonl\`, one append-only file per outcome. C
 ${END_MARKER}`;
 }
 
-const PROTOCOL_VERSION = 4;
+function protocolBlockV5(lang) {
+  return `${START_MARKER}
+<!-- inkan-protocol: 5 -->
+<!-- inkan-lang: ${lang} -->
+
+## Agent protocol: sealed outcomes
+
+This repository uses Inkan (\`inkan\`, alias \`ink\`). Inkan keeps a trustworthy record of what the work was meant to deliver and what was declared at close. It does not inspect commits, run tests, or judge the result; the repository's own checks do that. Write outcome prose in ${lang}.
+
+1. **Seal before durable changes.** Before changing code, configuration, documentation, or dependencies, run \`inkan status\`; if it shows an open outcome that is not your work, follow rule 4 first. Then run \`inkan begin "<outcome>" --accept "<observable criterion>"\`. Repeat \`--accept\` per criterion. Add \`--decision <id>\` for each decision record this work is bound by. Add \`--lane <tag>\` only when the repository already files outcomes by lane.
+2. **The seal is a fact.** Deliver what it says. If circumstances change, do not reinterpret it: run \`inkan amend --reason "<what changed>"\` with the added or withdrawn criteria. The original text stays. Never question why the outcome was sealed the way it was at the time.
+3. **Close with dispositions, then commit.** Run \`inkan end --met <n>... [--unmet <n>...] --note "<what happened>"\`. Every live criterion gets a disposition. Commit the outcome record with the work. Never report success without closing the outcome.
+4. **Re-anchor after context loss.** Run \`inkan status\` and \`inkan log -n 3\`. An open outcome that is the work you were asked to do is your task: continue it, or close it with a note. An open outcome that is not your work belongs to another session: leave it alone. Never close, amend, or abandon an outcome you did not work on, and do not judge why it is still open. Before beginning your own outcome beside it, stop and tell the person it is there, and ask whether your work should run in its own git worktree, because separate worktrees keep each session's edits apart.
+5. **Closed outcomes are final.** Reviewing the log is reading, not re-checking. Never re-verify, re-attest, or re-close a closed outcome. If a past declaration now looks wrong, that is a new outcome with its own seal.
+
+Decision records live in \`.inkan/decisions/\`. Their Context and Decision sections record the scenario at the time and are never edited. To challenge one, run \`inkan decision update <id> --status <status> --reason "<what changed>"\` or add a new record that supersedes it.
+
+Outcome log: \`.inkan/outcomes/<id>.jsonl\`, one append-only file per outcome. Commit \`.inkan/\` with the code. Do not edit these files by hand.
+${END_MARKER}`;
+}
+
+const PROTOCOL_VERSION = 5;
 
 /**
  * The managed block for `lang` at protocol `version`, current by default.
@@ -552,6 +513,7 @@ export function protocolBlock(lang, version = PROTOCOL_VERSION) {
   if (version === 2) return protocolBlockV2(lang);
   if (version === 3) return protocolBlockV3(lang);
   if (version === 4) return protocolBlockV4(lang);
+  if (version === 5) return protocolBlockV5(lang);
   throw new InkanError(`unknown protocol version ${version}`);
 }
 
