@@ -92,6 +92,7 @@ inkan end --met 1 --met 2 --unmet 3 --note "Rate limiting deferred to the next s
 
 ```
 2026-09-03-0621-82qz partial
+Inkan-Outcome: 2026-09-03-0621-82qz
 ```
 
 Status is derived from the dispositions: every criterion declared met is
@@ -101,14 +102,37 @@ the definition of done.
 
 **5. Commit the work and its record together.**
 
-Stage the files for this outcome, including its `.inkan/` records, then
-commit using the repository's normal workflow:
+Stage the files for this outcome, including its `.inkan/` records. Include
+the trailer printed by `end` in the landing commit:
 
 ```sh
-git commit -m "feat: account recovery"
+git commit -m "feat: account recovery" \
+  -m "Inkan-Outcome: 2026-09-03-0621-82qz"
 ```
 
+The trailer goes in the final paragraph of the commit message, beside any
+other trailers without a blank line between them. The agent protocol
+requires it when submitting the work; Inkan installs no hook or executable
+gate to enforce that writing rule.
+
 The outcome is closed. There is no delivery audit to run afterwards.
+
+## Commit references when reading history
+
+`Inkan-Outcome: <id>` associates a commit with an outcome. It supplies
+context: what the work was meant to deliver, how it changed, and what was
+declared at close. It certifies neither completion nor acceptance criteria
+nor the contents of the commit.
+
+Follow the reference when useful. For historical context, prefer the file
+`.inkan/outcomes/<id>.jsonl` stored in that commit, readable with ordinary
+Git. `inkan log <id>` reads the record in the current checkout. These reads
+supply context without comparing the record with the commit.
+
+Missing trailers or unavailable referenced records are missing information.
+Reading history does not require validating delivery, backfilling trailers,
+repairing old commits, or reopening closed outcomes. The writing requirement
+applies when making new commits; it creates no retroactive duty for readers.
 
 ## After context loss
 
@@ -176,8 +200,9 @@ These are the product, not its limitations.
 `inkan init` writes a generated protocol block into `AGENTS.md`, the file
 coding agents already read. Five rules: seal before durable changes; the
 seal is a fact; close with dispositions, then commit the record with the
-work; re-anchor with `inkan status` after context loss and leave other
-sessions' outcomes alone; closed outcomes are final.
+work and include the outcome trailer; re-anchor with `inkan status` after
+context loss and leave other sessions' outcomes alone; closed outcomes are
+final and commit references are informational when reading history.
 The block carries a protocol number. `init`
 upgrades a block it generated under an earlier protocol in place and refuses
 to overwrite a block that was edited by hand, so the policy lives in exactly
@@ -224,6 +249,7 @@ Each stage adds to the record without rewriting an earlier declaration.
 | Change | How the intent moved, and why | `amend --reason` |
 | Constraint | The decisions the work is bound by | `decision add`, `--decision` |
 | Close | A disposition per criterion and the status derived from those declarations | `end` |
+| Commit reference | The outcome associated with a landing commit, for context | `Inkan-Outcome` trailer |
 | Resume | Where a fresh session picks up | `status`, `log` |
 
 Inkan is built this way itself. Its work is sealed and closed as outcomes,
@@ -245,7 +271,7 @@ is not part of the generated agent protocol.
 | `inkan init [--lang <tag>] [--claude]` | Writes or upgrades the managed block in `AGENTS.md`; creates `.inkan/`. `--claude` also links `CLAUDE.md` to `AGENTS.md`. | The block was hand-edited. A `CLAUDE.md` exists that is not that symlink. |
 | `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]` | Seals a new outcome; prints its id. Any other open outcome is named in a notice on stderr and left untouched. | Never. |
 | `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [<id>]` | Appends an amendment; prints the new contract hash. | No reason. No open outcome. Ambiguous open outcome without `<id>`. |
-| `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | Records dispositions and closes. Status is derived: all met is `completed`, any unmet is `partial`. Prints the outcome id and status. | A live criterion has no disposition, unless closing with `-s abandoned`. No note. |
+| `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | Records dispositions and closes. Status is derived: all met is `completed`, any unmet is `partial`. Prints the outcome id, status, and commit reference trailer. | A live criterion has no disposition, unless closing with `-s abandoned`. No note. |
 | `inkan status` | Prints every open outcome verbatim: sealed time, hash, lane, criteria with indexes, amendments with reasons, linked decisions. | Never. |
 | `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | One line per outcome, newest first, default 20. `<id>` prints one outcome in full, including dispositions and note. Filters combine. | Never. |
 | `inkan doctor` | Optional, read-only diagnostic. Folds every outcome and parses every decision; reports corrupt files, id mismatches, duplicate decision ids, and dangling decision links. Exit 0 clean, 1 problems. | Never. |
@@ -288,7 +314,8 @@ benchmark (`npm run bench`) seeds ten thousand closed outcomes and holds
 
 Inkan began with 0.1.0, rebuilt from scratch as the successor to DriftSeal.
 Current development removes delivery auditing from that first release
-(decision 0015). Still deferred: an importer for DriftSeal
+(decision 0015) while retaining outcome trailers as commit references
+(decision 0016). Still deferred: an importer for DriftSeal
 history and an MCP server. Those are adapters and can follow without
 changing the record format. The only host-specific convenience is
 `--claude` on `init` and `skill install`; every other host reads

@@ -33,3 +33,9 @@ Remove the check command and API, working-tree snapshots, Git HEAD capture, and 
 * doctor is available on demand but is absent from the normal workflow and generated protocol
 
 ## Decision History
+
+### 2026-09-09T02:57:39.042Z, outcome 2026-09-09-0256-gxgm
+
+Status: accepted -> accepted
+
+Superseded in part by 0016 after Hiro distinguished a reference from an audit: end again prints Inkan-Outcome and Protocol 6 requires it on new landing commits. Reading the trailer is informational and never requires validation, repair, or backfilling history. The removal of check, Git state capture, and runtime Git execution stands; doctor remains optional.

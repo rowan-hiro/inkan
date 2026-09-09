@@ -72,19 +72,31 @@ inkan end --met 1 --met 2 --unmet 3 --note "Rate limiting deferred to the next s
 
 ```
 2026-09-03-0621-82qz partial
+Inkan-Outcome: 2026-09-03-0621-82qz
 ```
 
 状态根据 disposition 推导：所有标准都声明为 met 时是 `completed`，只要有一项声明为 unmet 就是 `partial`。如实记录的 `partial` 是一种完整、正式的结果；agent 应当报告它，而不是为了声称“完成”而拉伸 done 的定义。
 
 **5. 把工作和记录一起提交。**
 
-把本项工作涉及的文件加入暂存区，包括 `.inkan/` 中的记录，然后按仓库平时的流程 commit：
+把本项工作涉及的文件加入暂存区，包括 `.inkan/` 中的记录。落地 commit 要带上 `end` 打印的 trailer：
 
 ```sh
-git commit -m "feat: account recovery"
+git commit -m "feat: account recovery" \
+  -m "Inkan-Outcome: 2026-09-03-0621-82qz"
 ```
 
+trailer 放在 commit message 的最后一段，与其他 trailer 相邻，中间不留空行。agent protocol 要求提交时写上这条关联信息；Inkan 不安装 hook，也不通过程序阻塞提交来执行这项规则。
+
 outcome 已经关闭，后面没有需要执行的交付审计。
+
+## 阅读历史时使用关联信息
+
+`Inkan-Outcome: <id>` 把 commit 与 outcome 联系起来，方便了解工作原本要交付什么、过程中如何调整，以及结束时声明了什么。它不证明工作已完成、验收条件已满足，也不证明 commit 的内容。
+
+需要这些上下文时再沿着引用读取。了解历史时，优先通过普通 Git 命令读取该 commit 中的 `.inkan/outcomes/<id>.jsonl`；`inkan log <id>` 读取的是当前 checkout 中的记录。这种读取只提供上下文，不作一致性判断。
+
+缺少 trailer 或找不到关联记录，只表示信息缺失。阅读历史不要求验证交付、补填 trailer、修复旧 commit 或重新打开已关闭的 outcome。提交规则用于写入新的 commit，不给阅读者增加追溯修补的义务。
 
 ## Context 丢失之后
 
@@ -127,7 +139,7 @@ inkan log -n 3
 
 ## 为 agent 而生
 
-`inkan init` 会把生成好的 protocol block 写进 coding agent 本来就会读取的 `AGENTS.md`。其中只有五条规则：在 durable change 之前 seal；seal 是事实；先逐项 disposition 并关闭，再把记录与工作一起提交；context 丢失后用 `inkan status` 重新锚定，同时不碰其他 session 的 outcome；关闭即最终状态。
+`inkan init` 会把生成好的 protocol block 写进 coding agent 本来就会读取的 `AGENTS.md`。其中只有五条规则：在 durable change 之前 seal；seal 是事实；先逐项 disposition 并关闭，再把记录与工作一起提交，并写入 outcome trailer；context 丢失后用 `inkan status` 重新锚定，同时不碰其他 session 的 outcome；关闭即最终状态，阅读历史时仅把 commit 引用作为辅助信息。
 
 protocol block 带有版本号。`init` 会原地升级由旧版 protocol 生成的 block，但拒绝覆盖经过手工编辑的 block，确保 policy 始终只有一个权威来源。`--lang <tag>` 用来设置 agent 撰写 outcome 文本时应使用的语言。`inkan init --claude` 还会把 `CLAUDE.md` 创建为指向 `AGENTS.md` 的 symlink：Claude Code 读的是自己认识的文件名，而 policy 依然只有一份，不是副本。
 
@@ -159,6 +171,7 @@ Inkan 自己的设计也用同样的方式记录，从 `0001` 中划定的边界
 | 变更 | 意图如何变化，以及为什么变化 | `amend --reason` |
 | 约束 | 当前工作受哪些 decision 约束 | `decision add`、`--decision` |
 | 关闭 | 每条标准的 disposition，以及由这些声明推导出的状态 | `end` |
+| 提交关联 | commit 关联的 outcome，供阅读时了解上下文 | `Inkan-Outcome` trailer |
 | 恢复 | 新 session 从哪里接手 | `status`、`log` |
 
 Inkan 本身也这样开发：工作先作为 outcome 被 seal，结束时记录声明；设计决定保存在 `.inkan/decisions/` 中。仓库保存长期上下文，供参与工作的每个 agent 使用。
@@ -176,7 +189,7 @@ Inkan 本身也这样开发：工作先作为 outcome 被 seal，结束时记录
 | `inkan init [--lang <tag>] [--claude]` | 写入或升级 `AGENTS.md` 中由 Inkan 管理的 block；创建 `.inkan/`。`--claude` 还会把 `CLAUDE.md` 软链到 `AGENTS.md`。 | block 曾被手工编辑；已存在一个不是该 symlink 的 `CLAUDE.md`。 |
 | `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]` | Seal 一个新 outcome，并打印其 id。其他 open outcome 会在 stderr 的 notice 中被点名，但不会受到任何改动。 | 永不拒绝。 |
 | `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [<id>]` | 追加 amendment，并打印新的 contract hash。 | 没有 reason；没有 open outcome；存在多个 open outcome，却没有用 `<id>` 明确指定目标。 |
-| `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | 记录 disposition 并关闭 outcome。状态由结果推导：全部 met 为 `completed`，任一 unmet 为 `partial`。打印 outcome id 和状态。 | 仍生效的标准缺少 disposition（以 `-s abandoned` 关闭时除外）；没有 note。 |
+| `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | 记录 disposition 并关闭 outcome。状态由结果推导：全部 met 为 `completed`，任一 unmet 为 `partial`。打印 outcome id、状态和供 commit 使用的关联 trailer。 | 仍生效的标准缺少 disposition（以 `-s abandoned` 关闭时除外）；没有 note。 |
 | `inkan status` | 逐字打印所有 open outcome：seal 时间、hash、lane、带编号的标准、附 reason 的 amendment，以及关联的 decision。 | 永不拒绝。 |
 | `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | 每个 outcome 打印一行，最新的在前，默认 20 条。`<id>` 会完整打印一项 outcome，包括 disposition 和 note。filter 可以组合。 | 永不拒绝。 |
 | `inkan doctor` | 可选的只读文件诊断。Fold 所有 outcome 并解析所有 decision；报告损坏文件、id 不匹配、重复的 decision id，以及失效的 decision link。退出码：正常为 0，发现问题为 1。 | 永不拒绝。 |
@@ -203,7 +216,7 @@ contract hash 是一个 SHA-256，计算范围包括 outcome 文本、带 withdr
 
 ## 当前状态
 
-Inkan 从 0.1.0 起作为 DriftSeal 的继任者，从零重新构建。当前开发版本移除了首发版本中的交付审计（decision 0015）。目前仍未加入 DriftSeal 历史记录 importer 和 MCP server。这些都属于 adapter，可以后续补上，而无需改变记录格式。唯一针对特定 host 的便利是 `init` 和 `skill install` 的 `--claude`；其他 host 直接读取 `AGENTS.md` 和 `.agents/skills`，无需任何适配。Lane 目前只作为 `begin` 时可选的归档 tag，以及 `log` 的 filter。
+Inkan 从 0.1.0 起作为 DriftSeal 的继任者，从零重新构建。当前开发版本移除了首发版本中的交付审计（decision 0015），同时保留 outcome trailer 作为 commit 的关联信息（decision 0016）。目前仍未加入 DriftSeal 历史记录 importer 和 MCP server。这些都属于 adapter，可以后续补上，而无需改变记录格式。唯一针对特定 host 的便利是 `init` 和 `skill install` 的 `--claude`；其他 host 直接读取 `AGENTS.md` 和 `.agents/skills`，无需任何适配。Lane 目前只作为 `begin` 时可选的归档 tag，以及 `log` 的 filter。
 
 ## License
 

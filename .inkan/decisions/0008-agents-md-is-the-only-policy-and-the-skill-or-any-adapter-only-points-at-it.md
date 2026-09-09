@@ -56,3 +56,9 @@ Superseded in part by 0014: init --claude and the .agents/skills default with --
 Status: accepted -> accepted
 
 Protocol 5 implements 0015: close with dispositions and commit the record with the work, without an Inkan-Outcome trailer or delivery audit. Separate-worktree guidance now explains isolation of concurrent edits rather than tree snapshots. init upgrades generated protocols 1 through 4 and still refuses hand-edited blocks. doctor is optional and is not part of the protocol.
+
+### 2026-09-09T02:57:39.053Z, outcome 2026-09-09-0256-gxgm
+
+Status: accepted -> accepted
+
+Protocol 6 implements 0016: agents include the end output trailer in the final paragraph of a landing commit. Reading that trailer supplies context only and creates no duty to verify delivery or repair missing references. init upgrades generated protocols 1 through 5 while preserving refusal of hand-edited blocks. No check command, Git execution, hook, or mandatory doctor step is added.

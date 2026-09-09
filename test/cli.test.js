@@ -97,7 +97,7 @@ test('full begin/amend/end/status/log flow through the CLI', () => {
 
   const end = run(INKAN, ['end', '--met', '1', '--met', '2', '--unmet', '3: later', '--note', 'partially shipped'], dir);
   assert.equal(end.status, 0);
-  assert.equal(end.stdout, `${id} partial\n`);
+  assert.equal(end.stdout, `${id} partial\nInkan-Outcome: ${id}\n`);
 
   const log = run(INKAN, ['log'], dir);
   assert.equal(log.status, 0);
@@ -146,7 +146,7 @@ test('check is absent and doctor remains an optional diagnostic', () => {
   const id = run(INKAN, ['begin', 'Ship it', '--accept', 'a'], dir).stdout.trim();
   const ended = run(INKAN, ['end', '--met', '1', '--note', 'done'], dir);
   assert.equal(ended.status, 0);
-  assert.equal(ended.stdout, `${id} completed\n`);
+  assert.equal(ended.stdout, `${id} completed\nInkan-Outcome: ${id}\n`);
 
   const cleanDoctor = run(INKAN, ['doctor'], dir);
   assert.equal(cleanDoctor.status, 0);

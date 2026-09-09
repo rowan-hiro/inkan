@@ -56,3 +56,9 @@ Scope changed to @rowan-hiro/inkan on 2026-09-03, matching the GitHub owner rowa
 Status: accepted -> accepted
 
 0015 removes the Inkan-Outcome trailer from new output and protocol requirements. Existing trailers remain historical facts. Product, package, command, directory, and skill names are unchanged.
+
+### 2026-09-09T02:57:39.048Z, outcome 2026-09-09-0256-gxgm
+
+Status: accepted -> accepted
+
+0016 restores Inkan-Outcome as the commit reference to an outcome. Its presence carries no completion or verification claim. The product names and storage identity are unchanged.

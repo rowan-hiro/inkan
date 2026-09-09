@@ -112,9 +112,11 @@ try {
   assert.match(runInstalled('inkan', ['status']), /packaged smoke/);
   fs.writeFileSync(path.join(sandbox, 'smoke.txt'), 'done\n');
   const ended = runInstalled('inkan', ['end', '--met', '1', '--note', 'packaged smoke']);
-  assert.equal(ended, `${id} completed\n`);
+  assert.equal(ended, `${id} completed\nInkan-Outcome: ${id}\n`);
   git(['add', '-A']);
-  git(['commit', '-q', '-m', 'feat: smoke']);
+  const reference = ended.trim().split('\n')[1];
+  git(['commit', '-q', '-m', 'feat: smoke', '-m', reference]);
+  assert.equal(git(['log', '-1', '--format=%(trailers:key=Inkan-Outcome,valueonly)']).trim(), id);
   assert.match(runInstalled('ink', ['log', '-n', '1']), new RegExp(`^${id}  completed  packaged smoke`));
 
   process.stdout.write(`package smoke passed: ${packed[0].filename}\n`);

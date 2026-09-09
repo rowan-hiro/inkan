@@ -27,7 +27,7 @@ Commands:
         [--decision <id>]... [<id>]
       Append an amendment to the open outcome; prints the new contract hash.
   end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>
-      Record dispositions and close an outcome.
+      Record dispositions and close an outcome; print its commit reference.
   status
       Print every open outcome.
   log [-n <count>] [--since <date>] [--grep <regex>] [--status <s>]
@@ -263,6 +263,7 @@ function run(argv) {
         }
         const result = api.end({ root, id: positionals[0], ...values });
         console.log(`${result.id} ${result.status}`);
+        console.log(`Inkan-Outcome: ${result.id}`);
         break;
       }
       case 'status': {
