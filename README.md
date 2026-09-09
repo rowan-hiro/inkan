@@ -214,16 +214,6 @@ prose in. `inkan init --claude` also creates `CLAUDE.md` as a symlink to
 `AGENTS.md`: Claude Code reads its own file name, and there is still one
 policy, not a copy.
 
-For agents that support skill files, the bundled `use-inkan` skill helps an
-agent locate Inkan and re-anchor. It only points at `AGENTS.md`; it does not
-restate or extend the protocol.
-
-```sh
-inkan skill install                 # .agents/skills/use-inkan, read by most agents
-inkan skill install --claude        # .claude/skills/use-inkan, for Claude Code
-inkan skill install --target <dir>  # anywhere else, including a global directory
-```
-
 ## Decisions travel with the code
 
 Design choices are recorded as MADR (Markdown Architectural Decision
@@ -281,7 +271,6 @@ is not part of the generated agent protocol.
 | `inkan decision add "<title>" --context <text> --decision <text> [--driver <text>]... [--option <text>]... [--consequence <text>]... [-s <status>]` | Writes a numbered MADR file; prints its path. | Missing required sections. |
 | `inkan decision update <id> --status <status> --reason <text>` | Appends a dated history entry and sets the new status. Names the open outcome when there is one. Never edits Context or Decision Outcome. | Unknown id or status. |
 | `inkan decision list [-s <status>]` / `inkan decision show <id>` | Read-only. `show` accepts `2`, `02`, or `0002`. | Never. |
-| `inkan skill install [--claude \| --target <dir>]` | Copies the bundled skill to `.agents/skills/use-inkan/` under the repository root, to `.claude/skills/use-inkan/` with `--claude`, or to `<dir>/use-inkan/`; prints the destination. | The destination exists and differs from the bundled skill. `--claude` with `--target`. |
 
 Decision statuses are `proposed`, `accepted`, `rejected`, `deferred`,
 `deprecated`, and `superseded`.
@@ -320,10 +309,9 @@ Current development removes delivery auditing from that first release
 (decision 0015) while retaining outcome trailers as commit references
 (decision 0016). Still deferred: an importer for DriftSeal
 history and an MCP server. Those are adapters and can follow without
-changing the record format. The only host-specific convenience is
-`--claude` on `init` and `skill install`; every other host reads
-`AGENTS.md` and `.agents/skills` as they are. Lanes exist only as an
-optional filing tag on `begin` and a filter on `log`.
+changing the record format. For Claude Code, `inkan init --claude` links
+`CLAUDE.md` to `AGENTS.md`; other hosts read `AGENTS.md` directly. Lanes
+exist only as an optional filing tag on `begin` and a filter on `log`.
 
 ## Releasing
 
