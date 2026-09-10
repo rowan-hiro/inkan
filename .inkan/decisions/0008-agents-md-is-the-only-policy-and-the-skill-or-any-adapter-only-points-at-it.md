@@ -74,3 +74,9 @@ Protocol 7 (2026-09-09): the block states policy only. It names each command and
 Status: accepted -> accepted
 
 init now tells a block from a newer protocol apart from a hand edit. Found on 2026-09-09 when a globally installed 0.2.0 met this repository's protocol 7 block and reported it as edited by hand. A stamped protocol number above the tool's own now yields a message naming both numbers and asking to upgrade Inkan; the file is still left untouched. Hand-edit refusal for known protocols is unchanged. Hiro framed this as Postel's law: read liberally, write conservatively.
+
+### 2026-09-10T03:19:44.030Z, outcome 2026-09-10-0318-vwbj
+
+Status: accepted -> accepted
+
+Protocol 8 (2026-09-10): rule 1 gains one sentence for hosts that plan before they change, such as Claude Code's plan mode. The plan states the outcome, its criteria, and its decisions in the words inkan begin will receive, and running begin with that text unchanged is the first action after the plan is approved. Hiro asked for this after a design pass on 2026-09-10: plan approval is where a person agrees on what will be delivered, and writing the seal's words into the plan closes the gap where an agent could narrow the scope between the approved plan and the seal. Revisions before approval need no record because nothing is sealed yet; changes after the seal go through amend as before. The sentence is host-agnostic, so it belongs in the block rather than in the skill or a hook, per 0008 and 0014. init upgrades generated protocols 1 through 7 and still refuses hand-edited blocks.

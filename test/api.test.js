@@ -87,7 +87,7 @@ test('init --lang upgrades only the language parts of an unmodified block', () =
 });
 
 test('init upgrades a block generated under an earlier protocol and still refuses hand edits', () => {
-  for (const version of [1, 2, 3, 4, 5, 6]) {
+  for (const version of [1, 2, 3, 4, 5, 6, 7]) {
     const root = tmpDir();
     const agentsFile = path.join(root, 'AGENTS.md');
     const marker = new RegExp(`<!-- inkan-protocol: ${version} -->`);
@@ -96,9 +96,12 @@ test('init upgrades a block generated under an earlier protocol and still refuse
     const result = api.init({ root });
     assert.equal(result.changed, true);
     const agents = fs.readFileSync(agentsFile, 'utf8');
-    assert.match(agents, /<!-- inkan-protocol: 7 -->/);
+    assert.match(agents, /<!-- inkan-protocol: 8 -->/);
+    // Protocol 8: a host's planning step drafts the seal in begin's words.
+    assert.match(agents, /When the host has a planning step before changes, the plan states the outcome, its criteria, and its decisions in the words `inkan begin` will receive/);
+    assert.match(agents, /running it with that text unchanged is the first action after the plan is approved/);
     assert.match(agents, /Commit the outcome record with the work/);
-    // Protocol 7 states policy only; flag-level syntax lives in `inkan help`.
+    // Protocol 7 onward states policy only; flag-level syntax lives in `inkan help`.
     assert.match(agents, /`inkan help` gives the command syntax/);
     assert.doesNotMatch(agents, /--accept|--met|--unmet|--reason|--decision|--lane|--status/);
     assert.match(agents, /Include the printed `Inkan-Outcome: <id>` trailer in the final paragraph/);

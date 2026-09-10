@@ -205,7 +205,11 @@ context loss and leave other sessions' outcomes alone; closed outcomes are
 final and commit references are informational when reading history.
 The block states policy only. It names the commands and what each call
 must carry, and leaves flag-level syntax to `inkan help`, so a CLI change
-does not bump the protocol. The block carries a protocol number. `init`
+does not bump the protocol. Where the host plans before it changes, as
+Claude Code's plan mode does, the plan carries the outcome, its criteria,
+and its decisions in the words `inkan begin` will receive, so approving the
+plan approves the seal and `begin` runs unchanged as the first action after
+approval. The block carries a protocol number. `init`
 upgrades a block it generated under an earlier protocol in place and refuses
 to overwrite a block that was edited by hand, so the policy lives in exactly
 one place. A block stamped with a protocol newer than the installed Inkan
