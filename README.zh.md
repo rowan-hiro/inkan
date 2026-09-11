@@ -141,7 +141,7 @@ inkan log -n 3
 
 `inkan init` 会把生成好的 protocol block 写进 coding agent 本来就会读取的 `AGENTS.md`。其中只有五条规则：在 durable change 之前 seal；seal 是事实；先逐项 disposition 并关闭，再把记录与工作一起提交，并写入 outcome trailer；context 丢失后用 `inkan status` 重新锚定，同时不碰其他 session 的 outcome；关闭即最终状态，阅读历史时仅把 commit 引用作为辅助信息。
 
-这个 block 只说明 policy 和每次调用需要交代的内容，命令和参数用法见 `inkan help`。如果宿主在修改之前先有一个规划步骤，比如 Claude Code 的 plan mode，plan 里就用 `inkan begin` 将会收到的原话写明 outcome、验收条件和绑定的 decision：批准 plan 即批准 seal，plan 获批后的第一个动作就是原样运行 `inkan begin`。
+这个 block 只说明 policy 和每次调用需要交代的内容，命令和参数用法见 `inkan help`。seal 只管项目，不管机器：不会留下任何待 commit 内容的工作，比如安装工具、下载或准备数据、修改本地设置，都不需要 seal，所以在三台机器上准备同一个数据集，不会被记三次。如果宿主在修改之前先有一个规划步骤，比如 Claude Code 的 plan mode，plan 里就用 `inkan begin` 将会收到的原话写明 outcome、验收条件和绑定的 decision：批准 plan 即批准 seal，plan 获批后的第一个动作就是原样运行 `inkan begin`。
 
 protocol block 带有版本号。`init` 会原地升级由旧版 protocol 生成的 block，但拒绝覆盖经过手工编辑的 block，确保 policy 始终只有一个权威来源。`--lang <tag>` 用来设置 agent 撰写 outcome 文本时应使用的语言。`inkan init --claude` 还会把 `CLAUDE.md` 创建为指向 `AGENTS.md` 的 symlink：Claude Code 读的是自己认识的文件名，而 policy 依然只有一份，不是副本。
 

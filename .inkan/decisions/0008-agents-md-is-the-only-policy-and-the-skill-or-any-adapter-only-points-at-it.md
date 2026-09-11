@@ -80,3 +80,9 @@ init now tells a block from a newer protocol apart from a hand edit. Found on 20
 Status: accepted -> accepted
 
 Protocol 8 (2026-09-10): rule 1 gains one sentence for hosts that plan before they change, such as Claude Code's plan mode. The plan states the outcome, its criteria, and its decisions in the words inkan begin will receive, and running begin with that text unchanged is the first action after the plan is approved. Hiro asked for this after a design pass on 2026-09-10: plan approval is where a person agrees on what will be delivered, and writing the seal's words into the plan closes the gap where an agent could narrow the scope between the approved plan and the seal. Revisions before approval need no record because nothing is sealed yet; changes after the seal go through amend as before. The sentence is host-agnostic, so it belongs in the block rather than in the skill or a hook, per 0008 and 0014. init upgrades generated protocols 1 through 7 and still refuses hand-edited blocks.
+
+### 2026-09-11T03:30:50.740Z, outcome 2026-09-11-0329-915g
+
+Status: accepted -> accepted
+
+Protocol 9 (2026-09-11): rule 1 gains one sentence that scopes the seal to project work, not machine setup. Work that will leave nothing to commit, such as installing tools, fetching or preparing data, or changing local settings, needs no seal however many machines repeat it, and a project change it turns out to need is sealed as usual. Hiro asked for this on 2026-09-11 because preparing the same dataset on several machines was recorded once per machine. The test is whether the work leaves anything to commit: rule 3 commits every outcome with its work, so an outcome whose work commits nothing records a machine rather than the project, and an agent can predict the test before it starts. The sentence is host-agnostic, so it belongs in the block, per 0008. init upgrades generated protocols 1 through 8 and still refuses hand-edited blocks.

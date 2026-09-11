@@ -87,7 +87,7 @@ test('init --lang upgrades only the language parts of an unmodified block', () =
 });
 
 test('init upgrades a block generated under an earlier protocol and still refuses hand edits', () => {
-  for (const version of [1, 2, 3, 4, 5, 6, 7]) {
+  for (const version of [1, 2, 3, 4, 5, 6, 7, 8]) {
     const root = tmpDir();
     const agentsFile = path.join(root, 'AGENTS.md');
     const marker = new RegExp(`<!-- inkan-protocol: ${version} -->`);
@@ -96,7 +96,10 @@ test('init upgrades a block generated under an earlier protocol and still refuse
     const result = api.init({ root });
     assert.equal(result.changed, true);
     const agents = fs.readFileSync(agentsFile, 'utf8');
-    assert.match(agents, /<!-- inkan-protocol: 8 -->/);
+    assert.match(agents, /<!-- inkan-protocol: 9 -->/);
+    // Protocol 9: project work is sealed, machine setup is not.
+    assert.match(agents, /Seal project work, not machine setup: work that will leave nothing to commit, such as installing tools, fetching or preparing data, or changing local settings, needs no seal however many machines repeat it/);
+    assert.match(agents, /a project change it turns out to need is sealed as usual/);
     // Protocol 8: a host's planning step drafts the seal in begin's words.
     assert.match(agents, /When the host has a planning step before changes, the plan states the outcome, its criteria, and its decisions in the words `inkan begin` will receive/);
     assert.match(agents, /running it with that text unchanged is the first action after the plan is approved/);
