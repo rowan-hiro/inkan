@@ -1,6 +1,6 @@
 {
   "name": "@rowan-hiro/inkan",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Seal the authoritative outcome; keep a trustworthy record of the process.",
   "type": "module",
   "bin": {
