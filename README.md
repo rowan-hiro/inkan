@@ -208,8 +208,11 @@ must carry, and leaves flag-level syntax to `inkan help`, so a CLI change
 does not bump the protocol. The seal covers the project, not the machine:
 work that leaves nothing to commit, such as installing tools, fetching or
 preparing data, or changing local settings, needs no seal, so preparing the
-same dataset on three machines does not record it three times. Where the
-host plans before it changes, as
+same dataset on three machines does not record it three times. Sealed
+outcome and decision prose is written for the published repository: paths
+are named relative to the repository root, never as a machine-local
+absolute path, so a clone does not inherit another checkout's location.
+Where the host plans before it changes, as
 Claude Code's plan mode does, the plan carries the outcome, its criteria,
 and its decisions in the words `inkan begin` will receive, so approving the
 plan approves the seal and `begin` runs unchanged as the first action after

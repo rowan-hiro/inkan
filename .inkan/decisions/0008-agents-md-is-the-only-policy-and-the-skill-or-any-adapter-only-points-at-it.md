@@ -86,3 +86,9 @@ Protocol 8 (2026-09-10): rule 1 gains one sentence for hosts that plan before th
 Status: accepted -> accepted
 
 Protocol 9 (2026-09-11): rule 1 gains one sentence that scopes the seal to project work, not machine setup. Work that will leave nothing to commit, such as installing tools, fetching or preparing data, or changing local settings, needs no seal however many machines repeat it, and a project change it turns out to need is sealed as usual. Hiro asked for this on 2026-09-11 because preparing the same dataset on several machines was recorded once per machine. The test is whether the work leaves anything to commit: rule 3 commits every outcome with its work, so an outcome whose work commits nothing records a machine rather than the project, and an agent can predict the test before it starts. The sentence is host-agnostic, so it belongs in the block, per 0008. init upgrades generated protocols 1 through 8 and still refuses hand-edited blocks.
+
+### 2026-09-16T00:28:22.523Z, outcome 2026-09-16-0027-3bsy
+
+Status: accepted -> accepted
+
+Protocol 10 (2026-09-16): rule 1 gains one sentence that sealed outcome and decision prose is written for the published repository. Paths are named relative to the repository root, never as a machine-local absolute path, so the record does not expose a checkout location and remains readable after a clone. Hiro asked for this on 2026-09-16 because machine-local paths in sealed records expose a checkout and confuse anyone who clones the repository. The test is whether a path still makes sense after a clone: a repository-relative path does, a machine-local absolute path does not. The sentence is host-agnostic, so it belongs in the block, per 0008. init upgrades generated protocols 1 through 9 and still refuses hand-edited blocks.

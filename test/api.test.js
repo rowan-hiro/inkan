@@ -87,7 +87,7 @@ test('init --lang upgrades only the language parts of an unmodified block', () =
 });
 
 test('init upgrades a block generated under an earlier protocol and still refuses hand edits', () => {
-  for (const version of [1, 2, 3, 4, 5, 6, 7, 8]) {
+  for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
     const root = tmpDir();
     const agentsFile = path.join(root, 'AGENTS.md');
     const marker = new RegExp(`<!-- inkan-protocol: ${version} -->`);
@@ -96,7 +96,10 @@ test('init upgrades a block generated under an earlier protocol and still refuse
     const result = api.init({ root });
     assert.equal(result.changed, true);
     const agents = fs.readFileSync(agentsFile, 'utf8');
-    assert.match(agents, /<!-- inkan-protocol: 9 -->/);
+    assert.match(agents, /<!-- inkan-protocol: 10 -->/);
+    // Protocol 10: sealed prose names repository-relative paths, not machine paths.
+    assert.match(agents, /Write sealed outcome and decision prose for the published repository: name paths relative to the repository root, never a machine-local absolute path/);
+    assert.match(agents, /so the record does not expose a checkout location and remains readable after a clone/);
     // Protocol 9: project work is sealed, machine setup is not.
     assert.match(agents, /Seal project work, not machine setup: work that will leave nothing to commit, such as installing tools, fetching or preparing data, or changing local settings, needs no seal however many machines repeat it/);
     assert.match(agents, /a project change it turns out to need is sealed as usual/);
