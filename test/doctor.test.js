@@ -33,6 +33,8 @@ test('doctor reports a corrupt outcome file without crashing', () => {
   const result = api.doctor({ root });
   assert.equal(result.problems.length, 1);
   assert.match(result.problems[0], /^outcome 2026-01-01-0000-aaaa: .*contract hash does not match/);
+  assert.match(result.problems[0], /\.inkan\/outcomes\/2026-01-01-0000-aaaa\.jsonl/);
+  assert.equal(result.problems[0].includes(root), false);
 });
 
 test('doctor reports an outcome whose begin id does not match its file name', () => {
@@ -50,7 +52,8 @@ test('doctor reports a decision file that fails to parse', () => {
   fs.mkdirSync(store.decisionsDir(root), { recursive: true });
   fs.writeFileSync(path.join(store.decisionsDir(root), '0001-broken.md'), 'not a madr file');
   const result = api.doctor({ root });
-  assert.match(result.problems[0], /^decision 0001-broken\.md: .*missing "# N\. Title" heading/);
+  assert.match(result.problems[0], /^decision 0001-broken\.md: \.inkan\/decisions\/0001-broken\.md: missing "# N\. Title" heading/);
+  assert.equal(result.problems[0].includes(root), false);
 });
 
 test('doctor reports duplicate decision ids', () => {

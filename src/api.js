@@ -37,7 +37,7 @@ function loadRecord(root, id) {
     if (err.code === 'ENOENT') throw new InkanError(`unknown outcome "${id}"`);
     throw err;
   }
-  return fold(events, store.outcomeFile(root, id));
+  return fold(events, store.outcomeLabel(id));
 }
 
 function allRecords(root) {
@@ -302,7 +302,7 @@ export function doctor({ root }) {
       if (events[0]?.id !== undefined && events[0].id !== id) {
         problems.push(`outcome ${id}: begin id "${events[0].id}" does not match the file name`);
       }
-      records.push(fold(events, store.outcomeFile(resolvedRoot, id)));
+      records.push(fold(events, store.outcomeLabel(id)));
     } catch (err) {
       problems.push(`outcome ${id}: ${err.message}`);
     }
@@ -314,7 +314,7 @@ export function doctor({ root }) {
   for (const name of decisionNames) {
     const file = path.join(dir, name);
     try {
-      const record = decisions.parse(fs.readFileSync(file, 'utf8'), file);
+      const record = decisions.parse(fs.readFileSync(file, 'utf8'), store.decisionLabel(name));
       const owner = decisionOwners.get(record.id);
       if (owner) problems.push(`decision ${record.id}: duplicate id (${owner}, ${name})`);
       else decisionOwners.set(record.id, name);
@@ -768,7 +768,8 @@ export function skillInstall({ root, target, claude = false }) {
   const dest = path.join(base, 'use-inkan');
   if (fs.existsSync(dest)) {
     if (!sameTree(SKILL_SOURCE, dest)) {
-      throw new InkanError(`${dest} already exists and differs from the bundled skill; remove it by hand first`);
+      const from = target !== undefined ? path.resolve(target) : resolveRoot(root);
+      throw new InkanError(`${store.displayPath(from, dest)} already exists and differs from the bundled skill; remove it by hand first`);
     }
     return { dest };
   }

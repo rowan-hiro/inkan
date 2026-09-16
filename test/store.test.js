@@ -102,5 +102,17 @@ test('readOutcomeEvents rejects a corrupt JSON line', () => {
   const dir = store.outcomesDir(root);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, '2026-01-01-aaaa.jsonl'), '{"v":1}\nnot json\n');
-  assert.throws(() => store.readOutcomeEvents(root, '2026-01-01-aaaa'), /not valid JSON/);
+  assert.throws(() => store.readOutcomeEvents(root, '2026-01-01-aaaa'), (err) => {
+    assert.match(err.message, /^\.inkan\/outcomes\/2026-01-01-aaaa\.jsonl:2: not valid JSON$/);
+    assert.equal(err.message.includes(root), false);
+    return true;
+  });
+});
+
+test('displayPath is repository-relative with POSIX separators, never a machine-absolute leftover', () => {
+  const root = tmpDir();
+  assert.equal(store.displayPath(root, root), '.');
+  assert.equal(store.displayPath(root, path.join(root, '.inkan', 'decisions', '0001-x.md')), '.inkan/decisions/0001-x.md');
+  assert.equal(store.isInside(root, path.join(root, '.inkan')), true);
+  assert.equal(store.isInside(root, path.join(root, '..', 'outside')), false);
 });

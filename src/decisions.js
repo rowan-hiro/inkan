@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { decisionsDir } from './store.js';
+import { decisionLabel, decisionsDir } from './store.js';
 
 export const STATUSES = ['proposed', 'accepted', 'rejected', 'deferred', 'deprecated', 'superseded'];
 
@@ -106,7 +106,7 @@ export function list(root) {
     .filter((name) => name.endsWith('.md'))
     .map((name) => {
       const file = path.join(dir, name);
-      return parse(fs.readFileSync(file, 'utf8'), file);
+      return parse(fs.readFileSync(file, 'utf8'), decisionLabel(name));
     })
     .sort((a, b) => (a.id < b.id ? -1 : 1));
 }
@@ -144,8 +144,9 @@ function atomicWrite(file, content) {
  * heading is a bare `### <ts>`. Returns the previous status. */
 export function appendHistory(file, { ts, outcomeId, to, reason }) {
   const content = fs.readFileSync(file, 'utf8');
-  const before = parse(content, file); // validates shape and the new status token below
-  if (!STATUSES.includes(to)) throw new Error(`${file}: unknown status "${to}"`);
+  const label = decisionLabel(path.basename(file));
+  const before = parse(content, label); // validates shape and the new status token below
+  if (!STATUSES.includes(to)) throw new Error(`${label}: unknown status "${to}"`);
   const found = findHeadings(content);
   const statusEntry = found[0];
   const historyEntry = found[found.length - 1];

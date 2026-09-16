@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import * as api from './api.js';
 import { InkanError } from './api.js';
+import * as store from './store.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
@@ -48,7 +49,7 @@ Commands:
       Exit 0 clean, 1 problems. Never required to close an outcome.
   decision add "<title>" --context <text> --decision <text> [--driver <text>]...
                [--option <text>]... [--consequence <text>]... [-s <status>]
-      Write a numbered MADR record; prints its file path.
+      Write a numbered MADR record; prints its repository-relative path.
   decision show <id>
       Print one decision record verbatim. <id> accepts 2, 02, or 0002.
   decision list [-s <status>]
@@ -58,7 +59,7 @@ Commands:
   skill install [--claude | --target <dir>]
       Copy the bundled use-inkan skill to .agents/skills/use-inkan, or to
       .claude/skills/use-inkan with --claude, or to <dir>/use-inkan; prints
-      the path.
+      the repository-relative path.
 
   help, --help, -h     show this help
   --version, -v        print the version
@@ -68,6 +69,16 @@ Commands:
 function fail(message) {
   process.stderr.write(`inkan: ${message}\n`);
   process.exitCode = 1;
+}
+
+/** A path an agent can copy into a sealed record: under the Inkan root when
+ * the file lives there, otherwise relative to `cwd`. Never a machine-local
+ * absolute path. */
+function printedPath(absPath, cwd) {
+  const resolved = path.resolve(absPath);
+  const repoRoot = store.findRoot(cwd);
+  if (repoRoot && store.isInside(repoRoot, resolved)) return store.displayPath(repoRoot, resolved);
+  return store.displayPath(cwd, resolved);
 }
 
 function splitAmendPositionals(positionals) {
@@ -170,7 +181,7 @@ function runDecision(root, rest) {
       };
       const { values, positionals } = parseArgs({ args: subRest, options: opts, allowPositionals: true });
       if (positionals.length !== 1) throw new InkanError(DECISION_ADD_USAGE);
-      console.log(api.decisionAdd({ root, title: positionals[0], ...values }).file);
+      console.log(printedPath(api.decisionAdd({ root, title: positionals[0], ...values }).file, root));
       break;
     }
     case 'show': {
@@ -224,7 +235,7 @@ function run(argv) {
         });
         const result = api.init({ root, lang: values.lang, claude: values.claude });
         const verb = result.changed ? 'Initialized' : 'Already initialized';
-        console.log(`${verb} Inkan in ${result.root}`);
+        console.log(`${verb} Inkan in ${printedPath(result.root, root)}`);
         if (result.claudeFile) console.log('CLAUDE.md -> AGENTS.md');
         break;
       }
@@ -316,7 +327,7 @@ function run(argv) {
           args: subRest,
           options: { target: { type: 'string' }, claude: { type: 'boolean', default: false } },
         });
-        console.log(api.skillInstall({ root, target: values.target, claude: values.claude }).dest);
+        console.log(printedPath(api.skillInstall({ root, target: values.target, claude: values.claude }).dest, root));
         break;
       }
       default:
