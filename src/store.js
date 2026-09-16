@@ -35,6 +35,34 @@ export function outcomeFile(root, id) {
   return path.join(outcomesDir(root), `${id}.jsonl`);
 }
 
+/** Repository-relative label for an outcome file. Always POSIX separators. */
+export function outcomeLabel(id) {
+  return `${DIR_NAME}/outcomes/${id}.jsonl`;
+}
+
+/** Repository-relative label for a decision file. Always POSIX separators. */
+export function decisionLabel(name) {
+  return `${DIR_NAME}/decisions/${name}`;
+}
+
+/**
+ * `absPath` relative to `from`, POSIX separators, `.` when they are the same
+ * path. If the relative form is still absolute (a different drive on
+ * Windows), return the basename so a machine location is never printed.
+ */
+export function displayPath(from, absPath) {
+  const rel = path.relative(path.resolve(from), path.resolve(absPath));
+  if (rel === '') return '.';
+  if (path.isAbsolute(rel)) return path.basename(absPath);
+  return rel.split(path.sep).join('/');
+}
+
+/** Whether `absPath` is `root` or a path inside it. */
+export function isInside(root, absPath) {
+  const rel = path.relative(path.resolve(root), path.resolve(absPath));
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
+}
+
 // Crockford base32, lowercase, with the vowels (a, e) also removed on top of
 // Crockford's own exclusions (i, l, o, u) so an id never spells a word.
 const ID_ALPHABET = '0123456789bcdfghjkmnpqrstvwxyz';
@@ -100,7 +128,7 @@ export function parseOutcomeEvents(raw, label) {
 
 export function readOutcomeEvents(root, id) {
   const file = outcomeFile(root, id);
-  return parseOutcomeEvents(fs.readFileSync(file, 'utf8'), file);
+  return parseOutcomeEvents(fs.readFileSync(file, 'utf8'), outcomeLabel(id));
 }
 
 function fsyncDir(dir) {

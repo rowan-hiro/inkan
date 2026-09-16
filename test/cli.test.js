@@ -66,7 +66,12 @@ test('status outside an Inkan repository exits 1', () => {
 
 test('status on an initialized repo with nothing open exits 0', () => {
   const dir = tmpDir();
-  run(INKAN, ['init'], dir);
+  const init = run(INKAN, ['init'], dir);
+  assert.equal(init.status, 0);
+  assert.equal(init.stdout.trim(), 'Initialized Inkan in .');
+  assert.equal(init.stdout.includes(dir), false);
+  const again = run(INKAN, ['init'], dir);
+  assert.equal(again.stdout.trim(), 'Already initialized Inkan in .');
   const result = run(INKAN, ['status'], dir);
   assert.equal(result.status, 0);
   assert.equal(result.stdout.trim(), 'no outcome open');
@@ -168,7 +173,8 @@ test('decision add/show/list/update through the CLI, and amend accepts a legacy 
 
   const add = run(INKAN, ['decision', 'add', 'Pick a database', '--context', 'ctx', '--decision', 'dec'], dir);
   assert.equal(add.status, 0);
-  assert.match(add.stdout.trim(), /0001-pick-a-database\.md$/);
+  assert.equal(add.stdout.trim(), '.inkan/decisions/0001-pick-a-database.md');
+  assert.equal(add.stdout.includes(dir), false);
 
   const show = run(INKAN, ['decision', 'show', '1'], dir);
   assert.match(show.stdout, /^# 1\. Pick a database/);
@@ -202,4 +208,24 @@ test('begin beside another open outcome prints the new id on stdout and names th
   const status = run(INKAN, ['status'], dir);
   assert.match(status.stdout, new RegExp(`\\[${first.stdout.trim()}\\] open`));
   assert.match(status.stdout, new RegExp(`\\[${second.stdout.trim()}\\] open`));
+});
+
+test('skill install prints a repository-relative path, never a machine-local absolute path', () => {
+  const dir = tmpDir();
+  assert.equal(run(INKAN, ['init'], dir).status, 0);
+
+  const def = run(INKAN, ['skill', 'install'], dir);
+  assert.equal(def.status, 0);
+  assert.equal(def.stdout.trim(), '.agents/skills/use-inkan');
+  assert.equal(def.stdout.includes(dir), false);
+
+  const claude = run(INKAN, ['skill', 'install', '--claude'], dir);
+  assert.equal(claude.status, 0);
+  assert.equal(claude.stdout.trim(), '.claude/skills/use-inkan');
+  assert.equal(claude.stdout.includes(dir), false);
+
+  const targeted = run(INKAN, ['skill', 'install', '--target', 'copied-skills'], dir);
+  assert.equal(targeted.status, 0);
+  assert.equal(targeted.stdout.trim(), 'copied-skills/use-inkan');
+  assert.equal(targeted.stdout.includes(dir), false);
 });

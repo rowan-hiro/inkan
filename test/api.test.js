@@ -568,7 +568,11 @@ test('skill install refuses a destination that exists and differs, with no force
   const target = tmpDir();
   api.skillInstall({ target });
   fs.appendFileSync(path.join(target, 'use-inkan', 'SKILL.md'), '\ntampered\n');
-  assert.throws(() => api.skillInstall({ target }), /already exists and differs/);
+  assert.throws(() => api.skillInstall({ target }), (err) => {
+    assert.match(err.message, /^use-inkan already exists and differs/);
+    assert.equal(err.message.includes(target), false);
+    return true;
+  });
 });
 
 test('skill install defaults to .agents/skills under the Inkan root, --claude to .claude/skills', () => {
