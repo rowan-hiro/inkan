@@ -64,6 +64,23 @@ test('status outside an Inkan repository exits 1', () => {
   assert.match(result.stderr, /run "inkan init"/);
 });
 
+test('init --local writes the local-only protocol; --local with --repo is refused', () => {
+  const dir = tmpDir();
+  const local = run(INKAN, ['init', '--local'], dir);
+  assert.equal(local.status, 0);
+  assert.equal(local.stdout.trim(), 'Initialized Inkan in .');
+  const agents = fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8');
+  assert.match(agents, /<!-- inkan-mode: local -->/);
+  assert.match(agents, /Keep `\.inkan\/` on this checkout only; do not commit it/);
+  const again = run(INKAN, ['init'], dir);
+  assert.equal(again.stdout.trim(), 'Already initialized Inkan in .');
+  assert.equal(fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8'), agents);
+
+  const both = run(INKAN, ['init', '--local', '--repo'], dir);
+  assert.equal(both.status, 1);
+  assert.match(both.stderr, /--local or --repo, not both/);
+});
+
 test('status on an initialized repo with nothing open exits 0', () => {
   const dir = tmpDir();
   const init = run(INKAN, ['init'], dir);
@@ -148,6 +165,8 @@ test('check is absent and doctor remains an optional diagnostic', () => {
   assert.match(help.stdout, /Repeat --accept once per/);
   assert.match(help.stdout, /Repeat --met or --unmet once/);
   assert.match(help.stdout, /every live criterion needs one/);
+  assert.match(help.stdout, /--local \| --repo/);
+  assert.match(help.stdout, /--local keeps \.inkan\/ on this checkout/);
   const removed = run(INKAN, ['check'], dir);
   assert.equal(removed.status, 1);
   assert.match(removed.stderr, /unknown command "check"/);

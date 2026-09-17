@@ -42,7 +42,11 @@ test('init creates storage dirs and writes AGENTS.md', () => {
   const agents = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
   assert.match(agents, /^# Agent instructions/);
   assert.match(agents, /<!-- inkan -->/);
+  assert.match(agents, /<!-- inkan-protocol: 11 -->/);
+  assert.match(agents, /<!-- inkan-mode: repo -->/);
   assert.match(agents, /<!-- inkan-lang: en -->/);
+  assert.match(agents, /Commit the outcome record with the work/);
+  assert.match(agents, /Commit `\.inkan\/` with the code/);
 });
 
 test('init is idempotent', () => {
@@ -87,7 +91,7 @@ test('init --lang upgrades only the language parts of an unmodified block', () =
 });
 
 test('init upgrades a block generated under an earlier protocol and still refuses hand edits', () => {
-  for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+  for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
     const root = tmpDir();
     const agentsFile = path.join(root, 'AGENTS.md');
     const marker = new RegExp(`<!-- inkan-protocol: ${version} -->`);
@@ -96,7 +100,8 @@ test('init upgrades a block generated under an earlier protocol and still refuse
     const result = api.init({ root });
     assert.equal(result.changed, true);
     const agents = fs.readFileSync(agentsFile, 'utf8');
-    assert.match(agents, /<!-- inkan-protocol: 10 -->/);
+    assert.match(agents, /<!-- inkan-protocol: 11 -->/);
+    assert.match(agents, /<!-- inkan-mode: repo -->/);
     // Protocol 10: sealed prose names repository-relative paths, not machine paths.
     assert.match(agents, /Write sealed outcome and decision prose for the published repository: name paths relative to the repository root, never a machine-local absolute path/);
     assert.match(agents, /so the record does not expose a checkout location and remains readable after a clone/);
@@ -107,6 +112,7 @@ test('init upgrades a block generated under an earlier protocol and still refuse
     assert.match(agents, /When the host has a planning step before changes, the plan states the outcome, its criteria, and its decisions in the words `inkan begin` will receive/);
     assert.match(agents, /running it with that text unchanged is the first action after the plan is approved/);
     assert.match(agents, /Commit the outcome record with the work/);
+    assert.match(agents, /Commit `\.inkan\/` with the code/);
     // Protocol 7 onward states policy only; flag-level syntax lives in `inkan help`.
     assert.match(agents, /`inkan help` gives the command syntax/);
     assert.doesNotMatch(agents, /--accept|--met|--unmet|--reason|--decision|--lane|--status/);
@@ -123,6 +129,57 @@ test('init upgrades a block generated under an earlier protocol and still refuse
     fs.writeFileSync(agentsFile, `# Agent instructions\n\n${edited}\n`);
     assert.throws(() => api.init({ root }), /edited by hand/);
   }
+});
+
+test('init --local writes the local-only block; a bare init keeps the mode; --repo switches back', () => {
+  const root = tmpDir();
+  const agentsFile = path.join(root, 'AGENTS.md');
+  const first = api.init({ root, local: true });
+  assert.equal(first.changed, true);
+  let agents = fs.readFileSync(agentsFile, 'utf8');
+  assert.match(agents, /<!-- inkan-protocol: 11 -->/);
+  assert.match(agents, /<!-- inkan-mode: local -->/);
+  assert.match(agents, /in local-only mode/);
+  assert.match(agents, /The record stays on this checkout and is not committed with the code/);
+  assert.match(agents, /Keep `\.inkan\/` on this checkout only; do not commit it/);
+  assert.match(agents, /Do not commit the outcome record, and do not include an `Inkan-Outcome` trailer/);
+  assert.doesNotMatch(agents, /Commit the outcome record with the work/);
+  assert.doesNotMatch(agents, /Commit `\.inkan\/` with the code/);
+  assert.doesNotMatch(agents, /<!-- inkan-mode: repo -->/);
+  assert.equal(api.init({ root }).changed, false);
+  assert.equal(fs.readFileSync(agentsFile, 'utf8'), agents);
+
+  const toRepo = api.init({ root, repo: true });
+  assert.equal(toRepo.changed, true);
+  agents = fs.readFileSync(agentsFile, 'utf8');
+  assert.match(agents, /<!-- inkan-mode: repo -->/);
+  assert.match(agents, /Commit the outcome record with the work/);
+  assert.doesNotMatch(agents, /<!-- inkan-mode: local -->/);
+  assert.equal(api.init({ root, local: true }).changed, true);
+  assert.match(fs.readFileSync(agentsFile, 'utf8'), /<!-- inkan-mode: local -->/);
+});
+
+test('init --local upgrades an earlier protocol to local-only and still refuses a hand-edited local block', () => {
+  const root = tmpDir();
+  const agentsFile = path.join(root, 'AGENTS.md');
+  fs.writeFileSync(agentsFile, `# Agent instructions\n\n${api.protocolBlock('en', 10)}\n`);
+  assert.equal(api.init({ root, local: true }).changed, true);
+  const agents = fs.readFileSync(agentsFile, 'utf8');
+  assert.match(agents, /<!-- inkan-mode: local -->/);
+  assert.match(agents, /Keep `\.inkan\/` on this checkout only; do not commit it/);
+  assert.equal(api.init({ root }).changed, false);
+
+  const localBlock = api.protocolBlock('en', 11, 'local');
+  const edited = localBlock.replace('Never report success', 'HAND EDITED');
+  fs.writeFileSync(agentsFile, `# Agent instructions\n\n${edited}\n`);
+  assert.throws(() => api.init({ root }), /edited by hand/);
+  assert.throws(() => api.init({ root, local: true }), /edited by hand/);
+});
+
+test('init refuses --local together with --repo', () => {
+  const root = tmpDir();
+  assert.throws(() => api.init({ root, local: true, repo: true }), /--local or --repo, not both/);
+  assert.ok(!fs.existsSync(path.join(root, 'AGENTS.md')));
 });
 
 test('init refuses a block from a newer protocol with an upgrade message, not the hand-edit one', () => {

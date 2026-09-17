@@ -1,8 +1,9 @@
 # Agent instructions
 
 <!-- inkan -->
-<!-- inkan-protocol: 10 -->
+<!-- inkan-protocol: 11 -->
 <!-- inkan-lang: en -->
+<!-- inkan-mode: repo -->
 
 ## Agent protocol: sealed outcomes
 

@@ -40,7 +40,7 @@ npm install --global @rowan-hiro/inkan
 inkan init
 ```
 
-这条命令会把一段由 Inkan 管理的 protocol 写入 `AGENTS.md`，并创建 `.inkan/`。请把两者一并 commit；从这一刻开始，它们就是代码的一部分。加上 `--claude`，还会把 `CLAUDE.md` 软链到 `AGENTS.md`，让 Claude Code 从同一个文件读取同一份 policy。
+这条命令会把一段由 Inkan 管理的 protocol 写入 `AGENTS.md`，并创建 `.inkan/`。请把两者一并 commit；从这一刻开始，它们就是代码的一部分。若记录只应留在本机 checkout，加上 `--local`：protocol 会要求 agent 不要提交 `.inkan/`，也不要在落地 commit 里写入 `Inkan-Outcome` trailer。加上 `--claude`，还会把 `CLAUDE.md` 软链到 `AGENTS.md`，让 Claude Code 从同一个文件读取同一份 policy。
 
 **2. 在动手修改代码之前 seal outcome。**
 
@@ -135,11 +135,11 @@ inkan log -n 3
 - **关闭即最终状态。** 没有 stale state，没有 invalidation，也不存在已经关闭的 outcome 还需要重做的概念。查看日志就是阅读，而不是重新检查。如果过去的声明如今看来有误，那应当成为一项拥有独立 seal 的新 outcome。
 - **它绝不代替别人关闭 outcome。** 多个 outcome 可以同时 open，每个 session 或 branch 各自拥有一个。`begin` 会指出其他 outcome 的存在，但不会碰它们。从未关闭的 outcome，就是“它确实没有关闭”的诚实记录；为何一直 open，应由人来调查，而不是由 agent 擅自判断。仅仅为了关闭而关闭，只会让日志充斥无意义的记录。
 - **它绝不改写当时的场景。** 情况变化时，agent 可以通过 amendment 或新的 decision record 对既有决定提出挑战，但绝不会修改那段记录了当时所知信息与所作决定的文本。
-- **没有额外运转部件。** 没有 server、database、index、lock、sidecar file 或 environment variable。一切都是 `.inkan/` 下的纯文本，随代码一同 commit，并通过普通 git 操作完成 merge。
+- **没有额外运转部件。** 没有 server、database、index、lock、sidecar file 或 environment variable。一切都是 `.inkan/` 下的纯文本。默认随代码一同 commit，并通过普通 git 操作完成 merge。`init --local` 则把记录留在本机 checkout。
 
 ## 为 agent 而生
 
-`inkan init` 会把生成好的 protocol block 写进 coding agent 本来就会读取的 `AGENTS.md`。其中只有五条规则：在 durable change 之前 seal；seal 是事实；先逐项 disposition 并关闭，再把记录与工作一起提交，并写入 outcome trailer；context 丢失后用 `inkan status` 重新锚定，同时不碰其他 session 的 outcome；关闭即最终状态，阅读历史时仅把 commit 引用作为辅助信息。
+`inkan init` 会把生成好的 protocol block 写进 coding agent 本来就会读取的 `AGENTS.md`。其中只有五条规则：在 durable change 之前 seal；seal 是事实；先逐项 disposition 并关闭，再把记录与工作一起提交，并写入 outcome trailer；context 丢失后用 `inkan status` 重新锚定，同时不碰其他 session 的 outcome；关闭即最终状态，阅读历史时仅把 commit 引用作为辅助信息。`init --local` 写下同一套五条规则，只改发布义务：`.inkan/` 留在本机 checkout，不要提交，落地 commit 也不要带 `Inkan-Outcome` trailer。`init --repo` 写下默认的、随代码提交记录的 protocol。两个旗标都省略时，保持当前模式。
 
 这个 block 只说明 policy 和每次调用需要交代的内容，命令和参数用法见 `inkan help`。seal 只管项目，不管机器：不会留下任何待 commit 内容的工作，比如安装工具、下载或准备数据、修改本地设置，都不需要 seal，所以在三台机器上准备同一个数据集，不会被记三次。封存的 outcome 与 decision 按已发布仓库来写：路径相对仓库根目录，从不写本机绝对路径，这样记录不会暴露某次 checkout 的位置，clone 下来的人读起来也不会困惑。如果宿主在修改之前先有一个规划步骤，比如 Claude Code 的 plan mode，plan 里就用 `inkan begin` 将会收到的原话写明 outcome、验收条件和绑定的 decision：批准 plan 即批准 seal，plan 获批后的第一个动作就是原样运行 `inkan begin`。
 
@@ -180,7 +180,7 @@ Inkan 本身也这样开发：工作先作为 outcome 被 seal，结束时记录
 
 | 命令 | 作用 | 何时拒绝执行 |
 |---|---|---|
-| `inkan init [--lang <tag>] [--claude]` | 写入或升级 `AGENTS.md` 中由 Inkan 管理的 block；创建 `.inkan/`。`--claude` 还会把 `CLAUDE.md` 软链到 `AGENTS.md`。 | block 曾被手工编辑；已存在一个不是该 symlink 的 `CLAUDE.md`。 |
+| `inkan init [--lang <tag>] [--claude] [--local \| --repo]` | 写入或升级 `AGENTS.md` 中由 Inkan 管理的 block；创建 `.inkan/`。`--local` 把 `.inkan/` 留在本机 checkout；`--repo` 是新仓库的默认。`--claude` 还会把 `CLAUDE.md` 软链到 `AGENTS.md`。 | block 曾被手工编辑；同时给出 `--local` 与 `--repo`；已存在一个不是该 symlink 的 `CLAUDE.md`。 |
 | `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]` | Seal 一个新 outcome，并打印其 id。其他 open outcome 会在 stderr 的 notice 中被点名，但不会受到任何改动。 | 永不拒绝。 |
 | `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [<id>]` | 追加 amendment，并打印新的 contract hash。 | 没有 reason；没有 open outcome；存在多个 open outcome，却没有用 `<id>` 明确指定目标。 |
 | `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | 记录 disposition 并关闭 outcome。状态由结果推导：全部 met 为 `completed`，任一 unmet 为 `partial`。打印 outcome id、状态和供 commit 使用的关联 trailer。 | 仍生效的标准缺少 disposition（以 `-s abandoned` 关闭时除外）；没有 note。 |

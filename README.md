@@ -57,9 +57,11 @@ inkan init
 ```
 
 This writes a managed protocol block into `AGENTS.md` and creates `.inkan/`.
-Commit both; they are part of the code from here on. Add `--claude` to also
-link `CLAUDE.md` to `AGENTS.md`, so Claude Code reads the same policy from
-the same file.
+Commit both; they are part of the code from here on. Add `--local` when the
+record should stay on this checkout: the protocol then tells agents not to
+commit `.inkan/` and not to include an `Inkan-Outcome` trailer. Add
+`--claude` to also link `CLAUDE.md` to `AGENTS.md`, so Claude Code reads
+the same policy from the same file.
 
 **2. Seal the outcome before touching code.**
 
@@ -192,8 +194,9 @@ These are the product, not its limitations.
   circumstances change, by amendment or by a new decision record. It never
   edits the text that records what was known and decided at the time.
 - **No moving parts.** No server, no database, no index, no lock, no sidecar
-  file, no environment variable. Everything is plain text under `.inkan/`,
-  committed with the code, and merged by ordinary git.
+  file, no environment variable. Everything is plain text under `.inkan/`.
+  The default is to commit it with the code and merge by ordinary git.
+  `init --local` keeps the record on this checkout instead.
 
 ## Built for agents
 
@@ -203,6 +206,10 @@ seal is a fact; close with dispositions, then commit the record with the
 work and include the outcome trailer; re-anchor with `inkan status` after
 context loss and leave other sessions' outcomes alone; closed outcomes are
 final and commit references are informational when reading history.
+`init --local` writes the same five rules with a local-only publication
+duty: keep `.inkan/` on this checkout, do not commit it, and do not include
+an `Inkan-Outcome` trailer. `init --repo` writes the default that commits
+the record. Omit both flags to keep the current mode.
 The block states policy only. It names the commands and what each call
 must carry, and leaves flag-level syntax to `inkan help`, so a CLI change
 does not bump the protocol. The seal covers the project, not the machine:
@@ -272,7 +279,7 @@ is not part of the generated agent protocol.
 
 | Command | Effect | Refuses when |
 |---|---|---|
-| `inkan init [--lang <tag>] [--claude]` | Writes or upgrades the managed block in `AGENTS.md`; creates `.inkan/`. `--claude` also links `CLAUDE.md` to `AGENTS.md`. | The block was hand-edited. A `CLAUDE.md` exists that is not that symlink. |
+| `inkan init [--lang <tag>] [--claude] [--local \| --repo]` | Writes or upgrades the managed block in `AGENTS.md`; creates `.inkan/`. `--local` keeps `.inkan/` on this checkout; `--repo` is the default for a new repository. `--claude` also links `CLAUDE.md` to `AGENTS.md`. | The block was hand-edited. `--local` together with `--repo`. A `CLAUDE.md` exists that is not that symlink. |
 | `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]` | Seals a new outcome; prints its id. Any other open outcome is named in a notice on stderr and left untouched. | Never. |
 | `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [<id>]` | Appends an amendment; prints the new contract hash. | No reason. No open outcome. Ambiguous open outcome without `<id>`. |
 | `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | Records dispositions and closes. Status is derived: all met is `completed`, any unmet is `partial`. Prints the outcome id, status, and commit reference trailer. | A live criterion has no disposition, unless closing with `-s abandoned`. No note. |

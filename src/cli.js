@@ -19,9 +19,11 @@ const OUTCOME_ID_RE = /^\d{4}-\d{2}-\d{2}-(?:\d{4}-)?[0-9a-z]{4}$/;
 const HELP = `Usage: inkan <command> [options]
 
 Commands:
-  init [--lang <tag>] [--claude]
+  init [--lang <tag>] [--claude] [--local | --repo]
       Create .inkan/ and write the agent protocol block into AGENTS.md.
-      --claude also links CLAUDE.md to AGENTS.md.
+      --local keeps .inkan/ on this checkout and does not commit it;
+      --repo is the default for a new repository. Omit both to keep
+      the current mode. --claude also links CLAUDE.md to AGENTS.md.
   begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]
       Seal a new outcome; prints its id. Repeat --accept once per
       observable criterion; they are numbered from 1 in that order.
@@ -231,9 +233,20 @@ function run(argv) {
       case 'init': {
         const { values } = parseArgs({
           args: rest,
-          options: { lang: { type: 'string' }, claude: { type: 'boolean', default: false } },
+          options: {
+            lang: { type: 'string' },
+            claude: { type: 'boolean', default: false },
+            local: { type: 'boolean', default: false },
+            repo: { type: 'boolean', default: false },
+          },
         });
-        const result = api.init({ root, lang: values.lang, claude: values.claude });
+        const result = api.init({
+          root,
+          lang: values.lang,
+          claude: values.claude,
+          local: values.local,
+          repo: values.repo,
+        });
         const verb = result.changed ? 'Initialized' : 'Already initialized';
         console.log(`${verb} Inkan in ${printedPath(result.root, root)}`);
         if (result.claudeFile) console.log('CLAUDE.md -> AGENTS.md');

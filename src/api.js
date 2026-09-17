@@ -607,14 +607,77 @@ Outcome log: \`.inkan/outcomes/<id>.jsonl\`, one append-only file per outcome. C
 ${END_MARKER}`;
 }
 
-const PROTOCOL_VERSION = 10;
+// Protocol 11 repo mode: v10 plus a mode stamp. The publication duty is
+// unchanged (decision 0018). Never edit once a later protocol ships.
+function protocolBlockV11Repo(lang) {
+  return `${START_MARKER}
+<!-- inkan-protocol: 11 -->
+<!-- inkan-lang: ${lang} -->
+<!-- inkan-mode: repo -->
+
+## Agent protocol: sealed outcomes
+
+This repository uses Inkan (\`inkan\`, alias \`ink\`). Inkan keeps a trustworthy record of what the work was meant to deliver and what was declared at close. It does not inspect commits, run tests, or judge the result; the repository's own checks do that. Write outcome prose in ${lang}. This block states the policy; \`inkan help\` gives the command syntax.
+
+1. **Seal before durable changes.** Before changing code, configuration, documentation, or dependencies, run \`inkan status\`; if it shows an open outcome that is not your work, follow rule 4 first. Then run \`inkan begin\` with the outcome, one observable acceptance criterion at a time, and every decision record the work is bound by. Seal project work, not machine setup: work that will leave nothing to commit, such as installing tools, fetching or preparing data, or changing local settings, needs no seal however many machines repeat it, and a project change it turns out to need is sealed as usual. Write sealed outcome and decision prose for the published repository: name paths relative to the repository root, never a machine-local absolute path, so the record does not expose a checkout location and remains readable after a clone. When the host has a planning step before changes, the plan states the outcome, its criteria, and its decisions in the words \`inkan begin\` will receive, and running it with that text unchanged is the first action after the plan is approved. File the outcome by lane only when the repository already files outcomes by lane.
+2. **The seal is a fact.** Deliver what it says. If circumstances change, do not reinterpret it: run \`inkan amend\` with the reason and the added or withdrawn criteria. The original text stays. Never question why the outcome was sealed the way it was at the time.
+3. **Close with dispositions, then commit.** Run \`inkan end\` with a disposition, met or unmet, for every live criterion and a note on what happened. Commit the outcome record with the work. Include the printed \`Inkan-Outcome: <id>\` trailer in the final paragraph of the landing commit message, beside any other trailers with no blank line between them. Never report success without closing the outcome.
+4. **Re-anchor after context loss.** Run \`inkan status\` and \`inkan log -n 3\`. An open outcome that is the work you were asked to do is your task: continue it, or close it with a note. An open outcome that is not your work belongs to another session: leave it alone. Never close, amend, or abandon an outcome you did not work on, and do not judge why it is still open. Before beginning your own outcome beside it, stop and tell the person it is there, and ask whether your work should run in its own git worktree, because separate worktrees keep each session's edits apart.
+5. **Closed outcomes are final.** Reviewing the log is reading, not re-checking. Never re-verify, re-attest, or re-close a closed outcome. If a past declaration now looks wrong, that is a new outcome with its own seal. When reading history, use commit trailers only as references. Missing trailers or unavailable referenced records are missing information, not failed outcomes or a reason to verify delivery or repair history.
+
+Decision records live in \`.inkan/decisions/\`. Their Context and Decision sections record the scenario at the time and are never edited. To challenge one, run \`inkan decision update\` with the new status and the reason, or add a new record that supersedes it.
+
+Outcome log: \`.inkan/outcomes/<id>.jsonl\`, one append-only file per outcome. Commit \`.inkan/\` with the code. Do not edit these files by hand.
+${END_MARKER}`;
+}
+
+// Protocol 11 local-only mode. Same seal rules; the record stays on this
+// checkout (decision 0018). Never edit once a later protocol ships.
+function protocolBlockV11Local(lang) {
+  return `${START_MARKER}
+<!-- inkan-protocol: 11 -->
+<!-- inkan-lang: ${lang} -->
+<!-- inkan-mode: local -->
+
+## Agent protocol: sealed outcomes
+
+This repository uses Inkan (\`inkan\`, alias \`ink\`) in local-only mode. Inkan keeps a trustworthy record of what the work was meant to deliver and what was declared at close. The record stays on this checkout and is not committed with the code. It does not inspect commits, run tests, or judge the result; the repository's own checks do that. Write outcome prose in ${lang}. This block states the policy; \`inkan help\` gives the command syntax.
+
+1. **Seal before durable changes.** Before changing code, configuration, documentation, or dependencies, run \`inkan status\`; if it shows an open outcome that is not your work, follow rule 4 first. Then run \`inkan begin\` with the outcome, one observable acceptance criterion at a time, and every decision record the work is bound by. Seal project work, not machine setup: work that will leave nothing to commit, such as installing tools, fetching or preparing data, or changing local settings, needs no seal however many machines repeat it, and a project change it turns out to need is sealed as usual. Write sealed outcome and decision prose with paths relative to the repository root, never a machine-local absolute path, so the record does not expose a checkout location. When the host has a planning step before changes, the plan states the outcome, its criteria, and its decisions in the words \`inkan begin\` will receive, and running it with that text unchanged is the first action after the plan is approved. File the outcome by lane only when the repository already files outcomes by lane.
+2. **The seal is a fact.** Deliver what it says. If circumstances change, do not reinterpret it: run \`inkan amend\` with the reason and the added or withdrawn criteria. The original text stays. Never question why the outcome was sealed the way it was at the time.
+3. **Close with dispositions.** Run \`inkan end\` with a disposition, met or unmet, for every live criterion and a note on what happened. Do not commit the outcome record, and do not include an \`Inkan-Outcome\` trailer in the landing commit. Never report success without closing the outcome.
+4. **Re-anchor after context loss.** Run \`inkan status\` and \`inkan log -n 3\`. An open outcome that is the work you were asked to do is your task: continue it, or close it with a note. An open outcome that is not your work belongs to another session: leave it alone. Never close, amend, or abandon an outcome you did not work on, and do not judge why it is still open. Before beginning your own outcome beside it, stop and tell the person it is there, and ask whether your work should run in its own git worktree, because separate worktrees keep each session's edits apart.
+5. **Closed outcomes are final.** Reviewing the log is reading, not re-checking. Never re-verify, re-attest, or re-close a closed outcome. If a past declaration now looks wrong, that is a new outcome with its own seal. When reading history, use commit trailers only as references. Missing trailers or unavailable referenced records are missing information, not failed outcomes or a reason to verify delivery or repair history.
+
+Decision records live in \`.inkan/decisions/\`. Their Context and Decision sections record the scenario at the time and are never edited. To challenge one, run \`inkan decision update\` with the new status and the reason, or add a new record that supersedes it.
+
+Outcome log: \`.inkan/outcomes/<id>.jsonl\`, one append-only file per outcome. Keep \`.inkan/\` on this checkout only; do not commit it. Do not edit these files by hand.
+${END_MARKER}`;
+}
+
+const PROTOCOL_VERSION = 11;
+const PROTOCOL_MODES = ['repo', 'local'];
+
+function requireMode(mode) {
+  if (!PROTOCOL_MODES.includes(mode)) {
+    throw new InkanError(`malformed mode "${mode}" (expected repo or local)`);
+  }
+  return mode;
+}
+
+/** Modes that have a generated block at `version`. Local-only starts at 11. */
+function modesFor(version) {
+  return version >= 11 ? PROTOCOL_MODES : ['repo'];
+}
 
 /**
- * The managed block for `lang` at protocol `version`, current by default.
- * Earlier versions stay available verbatim so `init` can tell a block it
- * generated before from a hand edit (decision 0008).
+ * The managed block for `lang` at protocol `version` and `mode`, current
+ * protocol and repo mode by default. Earlier versions stay available
+ * verbatim so `init` can tell a block it generated before from a hand
+ * edit (decision 0008). `mode` is ignored before protocol 11.
  */
-export function protocolBlock(lang, version = PROTOCOL_VERSION) {
+export function protocolBlock(lang, version = PROTOCOL_VERSION, mode = 'repo') {
+  if (version >= 11) requireMode(mode);
   if (version === 1) return protocolBlockV1(lang);
   if (version === 2) return protocolBlockV2(lang);
   if (version === 3) return protocolBlockV3(lang);
@@ -625,6 +688,7 @@ export function protocolBlock(lang, version = PROTOCOL_VERSION) {
   if (version === 8) return protocolBlockV8(lang);
   if (version === 9) return protocolBlockV9(lang);
   if (version === 10) return protocolBlockV10(lang);
+  if (version === 11) return mode === 'local' ? protocolBlockV11Local(lang) : protocolBlockV11Repo(lang);
   throw new InkanError(`unknown protocol version ${version}`);
 }
 
@@ -644,11 +708,12 @@ function extractBlock(content) {
   return { start, end: stop, text: content.slice(start, stop) };
 }
 
-export function init({ root, lang, claude = false }) {
+export function init({ root, lang, claude = false, local = false, repo = false }) {
   if (lang !== undefined && !LANG_RE.test(lang)) throw new InkanError(`malformed --lang "${lang}"`);
+  if (local && repo) throw new InkanError('init takes --local or --repo, not both');
 
   const dir = path.resolve(root);
-  const protocol = writeProtocol(dir, lang);
+  const protocol = writeProtocol(dir, lang, { local, repo });
   const linked = claude ? linkClaudeFile(dir) : false;
   return {
     root: dir,
@@ -680,39 +745,50 @@ function linkClaudeFile(dir) {
   return true;
 }
 
-/** Write or upgrade the managed block; see decision 0008. */
-function writeProtocol(dir, lang) {
+/** The generated mode of `blockText`, or null when it is not a known form. */
+function knownMode(blockText, lang) {
+  const foundKey = blockKey(blockText);
+  for (let v = 1; v <= PROTOCOL_VERSION; v += 1) {
+    for (const mode of modesFor(v)) {
+      if (foundKey === blockKey(protocolBlock(lang, v, mode))) return mode;
+    }
+  }
+  return null;
+}
+
+/** Write or upgrade the managed block; see decisions 0008 and 0018. */
+function writeProtocol(dir, lang, { local = false, repo = false } = {}) {
   fs.mkdirSync(store.outcomesDir(dir), { recursive: true });
   fs.mkdirSync(store.decisionsDir(dir), { recursive: true });
 
   const agentsFile = path.join(dir, AGENTS_FILENAME);
   const existing = fs.existsSync(agentsFile) ? fs.readFileSync(agentsFile, 'utf8') : null;
+  const requestedMode = local ? 'local' : repo ? 'repo' : null;
 
   if (existing === null) {
-    fs.writeFileSync(agentsFile, `# Agent instructions\n\n${protocolBlock(lang ?? DEFAULT_LANG)}\n`, 'utf8');
+    const mode = requestedMode ?? 'repo';
+    fs.writeFileSync(agentsFile, `# Agent instructions\n\n${protocolBlock(lang ?? DEFAULT_LANG, PROTOCOL_VERSION, mode)}\n`, 'utf8');
     return { root: dir, agentsFile, changed: true };
   }
 
   const found = extractBlock(existing);
   if (!found) {
+    const mode = requestedMode ?? 'repo';
     const separator = existing.endsWith('\n\n') ? '' : existing.endsWith('\n') ? '\n' : '\n\n';
-    fs.writeFileSync(agentsFile, `${existing}${separator}${protocolBlock(lang ?? DEFAULT_LANG)}\n`, 'utf8');
+    fs.writeFileSync(agentsFile, `${existing}${separator}${protocolBlock(lang ?? DEFAULT_LANG, PROTOCOL_VERSION, mode)}\n`, 'utf8');
     return { root: dir, agentsFile, changed: true };
   }
 
   const currentLang = found.text.match(/<!-- inkan-lang: ([^>]*)-->/);
   const resolvedLang = lang ?? (currentLang ? currentLang[1].trim() : DEFAULT_LANG);
-  const generated = protocolBlock(resolvedLang);
+  const detectedMode = knownMode(found.text, resolvedLang);
+  const resolvedMode = requestedMode ?? detectedMode ?? 'repo';
+  const generated = protocolBlock(resolvedLang, PROTOCOL_VERSION, resolvedMode);
 
   if (found.text === generated) return { root: dir, agentsFile, changed: false };
   // A block this tool generated under any protocol so far, differing at most
-  // in language, is upgraded in place. Anything else was edited by hand.
-  const foundKey = blockKey(found.text);
-  let known = false;
-  for (let v = 1; v <= PROTOCOL_VERSION; v += 1) {
-    if (foundKey === blockKey(protocolBlock(resolvedLang, v))) known = true;
-  }
-  if (known) {
+  // in language or mode, is upgraded in place. Anything else was edited by hand.
+  if (detectedMode) {
     const content = existing.slice(0, found.start) + generated + existing.slice(found.end);
     fs.writeFileSync(agentsFile, content, 'utf8');
     return { root: dir, agentsFile, changed: true };
