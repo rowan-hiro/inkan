@@ -1,7 +1,9 @@
 # README illustration prompts
 
 These illustrations were generated with the built-in imagegen tool. Each image
-used a separate text prompt, with no input images. The generated PNGs were
+used a separate text prompt. The first three images used no input images; the
+workflow used existing illustrations as style references, as listed below.
+The generated PNGs were
 encoded as WebP at quality 85 without resizing for use in README.md.
 
 The illustrations express recording intent, preserving amendments, and carrying
@@ -55,3 +57,28 @@ Subject: two simple cropped hands pass an open project folder containing the sam
 Lighting/mood: calm continuity and an easy handoff, with the written record carrying the context. Avoid glowing brains, robot mascots, network clouds and approval symbolism.
 ```
 
+## workflow.webp
+
+Style references: `docs/images/sealed-intent.webp` and
+`docs/images/append-only-record.webp`. These supplied visual style only; the
+workflow is a new image.
+
+```text
+Use case: infographic-diagram
+Asset type: illustrated usage workflow for the English README of Inkan, a lightweight record-keeping CLI for people and coding agents collaborating.
+Primary request: create a NEW illustrated workflow that replaces a plain Mermaid chart, matching the supplied paper-and-ink illustrations closely.
+Input images: Image 1 (sealed-intent.webp) and Image 2 (append-only-record.webp) are STYLE REFERENCES ONLY. Match their warm washi paper, black ink, tactile printmaking grain, vermilion stamp impressions, and softly shaded hand-drawn objects. Do not modify or duplicate the reference compositions.
+Scene/backdrop: one cohesive expanse of warm, lightly textured paper. The workflow should feel like an illustrated printed page with small paper documents and seal objects, not a corporate diagram of rounded rectangles.
+Composition/framing: landscape about 3:2, with generous outer margins. A clear left-to-right main path of FOUR equally prominent illustrated stations across the middle/lower area. Two smaller supporting notes above the work station show resumption and optional amendment. Keep connectors separate, easy to follow, and free of crossings. Use large, crisp dark typography legible when the whole image is displayed at 900 pixels wide; commands and short labels matter more than dense detail.
+Main path, in exact order:
+1. A sealed paper and small hanko stamp. Text: "Seal", "inkan begin", "Outcome + criteria", "Link decisions".
+2. An open working sheet with a pen. Text: "Work", "People + agents", "Repository checks".
+3. A paper record with a closing note, no approval marks. Text: "Close", "inkan end", "Met / unmet + note".
+4. A neatly gathered set of project papers. Text: "Commit", "git commit", "Work + record", "Inkan-Outcome trailer".
+Draw fine, hand-inked arrows from Seal to Work, Work to Close, and Close to Commit. Label the Work-to-Close arrow exactly "When ready".
+Supporting note A above the main path: a small open paper folder, label "Resume", with two command lines "inkan status" and "inkan log". A single arrow from this note enters Work; it does not lead to Seal.
+Supporting note B above Work: a small appended paper slip, label "Scope changes", command "inkan amend --reason", and caption "Record before doing". An optional vermilion loop runs from Work to this note and back to Work, without connecting to Close. This is an optional detour, not a mandatory step.
+Style/medium: delicate Japanese woodcut-inspired editorial artwork with real paper grain, restrained black contours and muted vermilion accents, matching the references. Objects are subtle supporting illustrations, not clip-art icons. Labels are typeset, crisp and horizontal, not brush calligraphy.
+Text: render ONLY the quoted English labels and commands specified above, exactly as written, with no invented words, captions, title, decorative kanji, pseudo-text, or watermarks. Inkan is spelled I-n-k-a-n. Use a readable monospaced face for CLI commands and a clean editorial face for labels. Do not hide text inside skewed or foreshortened paper objects.
+Constraints: the seal records a declaration; it does not certify correctness. Tests are run by the people/agents and repository tooling, never by Inkan. No checkmarks, shields, padlocks, certification badges, automated pass/fail verdicts, audit stages, robots, UI screenshots, neon colors, shiny 3D, or heavy flowchart boxes. Preserve all six workflow elements and the arrow directions described.
+```

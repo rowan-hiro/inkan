@@ -133,20 +133,7 @@ The workflow below assumes the default repository mode after `inkan init`.
 The agent does the project work and runs the repository's checks; Inkan records
 the declarations. Amend before carrying out work that changes the sealed scope.
 
-```mermaid
-flowchart TD
-    begin["inkan begin<br/>Seal outcome and criteria<br/>Link decisions"] --> scope{"Scope changed?"}
-    resume["inkan status / inkan log<br/>Resume your open outcome"] --> scope
-    scope -- Yes --> amend["inkan amend --reason<br/>Append the change and why"]
-    scope -- No --> work["Do project work<br/>Run repository checks"]
-    amend --> work
-    work --> close{"Ready to close?"}
-    close -- "Continue work" --> scope
-    close -- Yes --> finish["inkan end<br/>Met / unmet per criterion<br/>Add a closing note"]
-    finish --> commit["git commit<br/>Work + record<br/>Inkan-Outcome trailer"]
-    classDef record fill:#fff5ef,stroke:#a5452d,color:#38251e
-    class begin,resume,amend,finish record
-```
+![Inkan workflow: begin seals the outcome, criteria, and decisions; people and agents do the work and run repository checks; amend with a reason before doing changed-scope work; end declares each criterion met or unmet with a note; commit the work, record, and Inkan-Outcome trailer. Resume an open outcome with status and log.](docs/images/workflow.webp)
 
 ## Commit references when reading history
 
