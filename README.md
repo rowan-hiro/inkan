@@ -6,6 +6,8 @@
 
 *Seal what the work is meant to deliver. Record what was declared when it closed.*
 
+![An inked statement and a vermilion seal record the intention before work begins.](docs/images/sealed-intent.webp)
+
 Inkan is a small, zero-dependency CLI for repositories where coding agents
 do real work. It keeps a trustworthy record of what each piece of work was
 meant to deliver, how that intent changed along the way, and what was
@@ -119,6 +121,25 @@ gate to enforce that writing rule.
 
 The outcome is closed. There is no delivery audit to run afterwards.
 
+The workflow below assumes the default repository mode after `inkan init`.
+The agent does the project work and runs the repository's checks; Inkan records
+the declarations. Amend before carrying out work that changes the sealed scope.
+
+```mermaid
+flowchart TD
+    begin["inkan begin<br/>Seal outcome and criteria<br/>Link decisions"] --> scope{"Scope changed?"}
+    resume["inkan status / inkan log<br/>Resume your open outcome"] --> scope
+    scope -- Yes --> amend["inkan amend --reason<br/>Append the change and why"]
+    scope -- No --> work["Do project work<br/>Run repository checks"]
+    amend --> work
+    work --> close{"Ready to close?"}
+    close -- "Continue work" --> scope
+    close -- Yes --> finish["inkan end<br/>Met / unmet per criterion<br/>Add a closing note"]
+    finish --> commit["git commit<br/>Work + record<br/>Inkan-Outcome trailer"]
+    classDef record fill:#fff5ef,stroke:#a5452d,color:#38251e
+    class begin,resume,amend,finish record
+```
+
 ## Commit references when reading history
 
 `Inkan-Outcome: <id>` associates a commit with an outcome. It supplies
@@ -137,6 +158,8 @@ repairing old commits, or reopening closed outcomes. The writing requirement
 applies when making new commits; it creates no retroactive duty for readers.
 
 ## After context loss
+
+![An intact sealed record passes between two hands, carrying project context into the next session.](docs/images/session-handoff.webp)
 
 A new session, a new day, a compacted context: instead of guessing what was
 in progress, ask.
@@ -251,6 +274,8 @@ onward. There is no separate design document; `inkan decision list` prints
 the index.
 
 ## One record through the work
+
+![A paper record unfolds into successive panels, preserving the original declaration beside later additions.](docs/images/append-only-record.webp)
 
 Each stage adds to the record without rewriting an earlier declaration.
 
