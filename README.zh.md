@@ -6,13 +6,17 @@
 
 *先把工作要交付的结果 seal 下来，在结束时如实记录完成情况。*
 
-Inkan 是一款小巧、零依赖的 CLI，面向使用 coding agent 开发的代码仓库。它记录每项工作原本要交付什么、意图在过程中如何变化，以及结束时作出了怎样的声明。记录保存在仓库里，随代码一起提交；换一个 session 或 agent，也能从这里接手工作。
+Inkan 是一款小巧、零依赖的 CLI，偏向人与 coding agent 一起协作时的轻量记录。它记录每项工作原本要交付什么、意图在过程中如何变化，以及结束时作出了怎样的声明。记录保存在仓库里，随代码一起提交；换一个 session 或 agent，也能从这里接手工作。
+
+它适合人持续参与确定工作方向、审阅改动和决定是否接受结果的协作方式。Inkan 把双方共享的上下文明确记录下来，测试与检查则由仓库自己的工具负责。
+
+对于重验证、重测试的 agent 长程任务，推荐使用 [DriftSeal](https://github.com/rowan-hiro/DriftSeal)。它把验证证据绑定到累积的任务约定和工作区状态；带有验收标准的 outcome，只有在最新验证成功后才能以 completed 关闭。
 
 ## 问题所在
 
-漫长的 agent session 很容易偏离目标。Context 被压缩后，新 session 接手一项做到一半的任务，任务却在不知不觉间被重新解释：范围缩小了，一条验收标准被忘了，A 变成了 B，最终消息却依然写着“完成”。测试发现不了这种问题。测试能告诉你代码是否可用，却不能告诉你，这是不是你最初要求的那份代码。
+漫长的 agent session 很容易偏离目标。Context 被压缩后，新 session 接手一项做到一半的任务，任务却在不知不觉间被重新解释：范围缩小了，一条验收标准被忘了，A 变成了 B，最终消息却依然写着“完成”。仅凭测试通过，不能说明交付的工作仍然符合人与 agent 共同确定的目标。
 
-常见的解决办法是不断增加检查：更多测试、更多 gate，每次查看日志都重新验证一遍。这会让 agent 每次重读历史时，都再次检查自己过去的工作，最终陷入没有尽头的循环。Inkan 选择了另一条路：如实记录当时声明了什么、声明发生在何时，把记录本身视为事实，并把结果是否正确的判断交还给仓库自己的测试体系。
+Inkan 用轻量记录把共同确定的意图保留下来：如实记录当时声明了什么、声明发生在何时，把记录本身视为事实，并把结果是否正确的判断交给参与协作的人和仓库自己的测试体系。
 
 ## 记录里有什么
 
@@ -209,7 +213,7 @@ contract hash 是一个 SHA-256，计算范围包括 outcome 文本、带 withdr
 
 ## 当前状态
 
-Inkan 从 0.1.0 起作为 DriftSeal 的继任者，从零重新构建。当前开发版本移除了首发版本中的交付审计（decision 0015），同时保留 outcome trailer 作为 commit 的关联信息（decision 0016）。目前仍未加入 DriftSeal 历史记录 importer 和 MCP server。这些都属于 adapter，可以后续补上，而无需改变记录格式。对于 Claude Code，`inkan init --claude` 把 `CLAUDE.md` 软链到 `AGENTS.md`；其他 host 直接读取 `AGENTS.md`。Lane 目前只作为 `begin` 时可选的归档 tag，以及 `log` 的 filter。
+Inkan 在 DriftSeal 的开发经验基础上从零重新构建，从 0.1.0 起发布。当前开发版本移除了首发版本中的交付审计（decision 0015），同时保留 outcome trailer 作为 commit 的关联信息（decision 0016）。目前仍未加入 DriftSeal 历史记录 importer 和 MCP server。这些都属于 adapter，可以后续补上，而无需改变记录格式。对于 Claude Code，`inkan init --claude` 把 `CLAUDE.md` 软链到 `AGENTS.md`；其他 host 直接读取 `AGENTS.md`。Lane 目前只作为 `begin` 时可选的归档 tag，以及 `log` 的 filter。
 
 ## License
 

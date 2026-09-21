@@ -8,26 +8,34 @@
 
 ![An inked statement and a vermilion seal record the intention before work begins.](docs/images/sealed-intent.webp)
 
-Inkan is a small, zero-dependency CLI for repositories where coding agents
-do real work. It keeps a trustworthy record of what each piece of work was
-meant to deliver, how that intent changed along the way, and what was
-declared when it closed. The record lives in the repository and travels
-with the code, so a fresh session or a different agent can pick up the work
-without relying on another assistant's memory.
+Inkan is a small, zero-dependency CLI for lightweight record keeping when
+people and coding agents work together. It keeps a trustworthy record of
+what each piece of work was meant to deliver, how that intent changed along
+the way, and what was declared when it closed. The record lives in the
+repository and travels with the code, so a fresh session or a different
+agent can pick up the work without relying on another assistant's memory.
+
+It fits workflows where a person stays involved in shaping the work,
+reviewing changes, and deciding what to accept. Inkan keeps that shared
+context explicit while the repository's own tools handle tests and checks.
+
+For long-running agent tasks that require extensive testing and verification,
+we recommend [DriftSeal](https://github.com/rowan-hiro/DriftSeal). It binds
+verification evidence to the accumulated task contract and workspace state,
+and requires fresh successful verification before completing an outcome
+with acceptance criteria.
 
 ## The problem
 
 Long agent sessions lose the plot. Context gets compacted, a fresh session
 picks up a half-finished task, and the task gets quietly reinterpreted:
 scope narrows, a criterion is forgotten, A becomes B, and the final message
-still says "done". Tests do not catch this. Tests tell you the code works.
-They do not tell you it is the code you asked for.
+still says "done". A passing test suite alone does not show that the delivered
+work still matches what the person and agent agreed to do.
 
-The usual answer is more checking: more tests, more gates, re-verification
-on every look at the log. That makes an agent re-check its own past work
-every time it re-reads history, and the loop never ends. Inkan takes the
-other route. It records what was declared and when, treats the record as
-fact, and leaves judging the result to the repository's own tests.
+Inkan keeps that shared intent explicit through a lightweight record. It
+records what was declared and when, treats the record as fact, and leaves
+judging the result to the people involved and the repository's own tests.
 
 ## What the record holds
 
@@ -347,7 +355,7 @@ benchmark (`npm run bench`) seeds ten thousand closed outcomes and holds
 
 ## Status
 
-Inkan began with 0.1.0, rebuilt from scratch as the successor to DriftSeal.
+Inkan began with 0.1.0, rebuilt from scratch following the work on DriftSeal.
 Current development removes delivery auditing from that first release
 (decision 0015) while retaining outcome trailers as commit references
 (decision 0016). Still deferred: an importer for DriftSeal
