@@ -876,8 +876,9 @@ function sameTree(a, b) {
   return filesA.every((rel) => fs.readFileSync(path.join(a, rel)).equals(fs.readFileSync(path.join(b, rel))));
 }
 
-/** Copies the bundled `skills/use-inkan/` to `<target>/use-inkan/`; refuses,
- * with no overwrite flag, when the destination exists and differs. */
+/** Copies the bundled `skills/use-inkan/` to `<target>/use-inkan/`. A copy
+ * that differs is replaced whole, so upgrading Inkan and reinstalling brings
+ * the skill up to date (decision 0014 history). */
 export function skillInstall({ root, target, claude = false }) {
   if (target !== undefined && claude) throw new InkanError('skill install takes --claude or --target <dir>, not both');
   let base;
@@ -892,11 +893,8 @@ export function skillInstall({ root, target, claude = false }) {
   }
   const dest = path.join(base, 'use-inkan');
   if (fs.existsSync(dest)) {
-    if (!sameTree(SKILL_SOURCE, dest)) {
-      const from = target !== undefined ? path.resolve(target) : resolveRoot(root);
-      throw new InkanError(`${store.displayPath(from, dest)} already exists and differs from the bundled skill; remove it by hand first`);
-    }
-    return { dest };
+    if (sameTree(SKILL_SOURCE, dest)) return { dest };
+    fs.rmSync(dest, { recursive: true, force: true });
   }
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.cpSync(SKILL_SOURCE, dest, { recursive: true });

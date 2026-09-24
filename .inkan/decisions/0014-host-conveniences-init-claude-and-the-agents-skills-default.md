@@ -34,3 +34,9 @@ inkan init --claude creates CLAUDE.md as a relative symlink to AGENTS.md, so Cla
 * Global installs still spell the path with --target
 
 ## Decision History
+
+### 2026-09-24T04:05:25.421Z, outcome 2026-09-24-0405-cngn
+
+Status: accepted -> accepted
+
+skill install now replaces a use-inkan copy that differs from the bundled skill instead of refusing (2026-09-24). Found when upgrading to 0.6.0: the installed copy was the unmodified 0.5.0 skill, yet install refused it and left the protocol 11 re-anchor text in place, so every upgrade needed a manual delete. Hiro chose plain overwrite over tracking known versions: the skill only points at AGENTS.md per 0008 and carries no policy of its own, so a local edit to it protects nothing worth a refusal. The destination directory is replaced whole, so files the bundled skill dropped do not linger. There is still no force flag, because none is needed.

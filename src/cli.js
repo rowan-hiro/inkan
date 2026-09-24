@@ -60,8 +60,8 @@ Commands:
       Append a dated history entry and set the new status.
   skill install [--claude | --target <dir>]
       Copy the bundled use-inkan skill to .agents/skills/use-inkan, or to
-      .claude/skills/use-inkan with --claude, or to <dir>/use-inkan; prints
-      the repository-relative path.
+      .claude/skills/use-inkan with --claude, or to <dir>/use-inkan; replaces
+      a copy that differs. Prints the repository-relative path.
 
   help, --help, -h     show this help
   --version, -v        print the version

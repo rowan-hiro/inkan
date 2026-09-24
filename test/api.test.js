@@ -636,15 +636,16 @@ test('skill install copies the bundled skill and is idempotent', () => {
   assert.doesNotThrow(() => api.skillInstall({ target }));
 });
 
-test('skill install refuses a destination that exists and differs, with no force flag', () => {
+test('skill install replaces a destination that differs with the bundled skill', () => {
   const target = tmpDir();
-  api.skillInstall({ target });
-  fs.appendFileSync(path.join(target, 'use-inkan', 'SKILL.md'), '\ntampered\n');
-  assert.throws(() => api.skillInstall({ target }), (err) => {
-    assert.match(err.message, /^use-inkan already exists and differs/);
-    assert.equal(err.message.includes(target), false);
-    return true;
-  });
+  const dest = api.skillInstall({ target }).dest;
+  const bundled = fs.readFileSync(path.join(dest, 'SKILL.md'), 'utf8');
+  // An older or edited copy, plus a file the bundled skill does not have.
+  fs.writeFileSync(path.join(dest, 'SKILL.md'), 'an older skill\n');
+  fs.writeFileSync(path.join(dest, 'stale.md'), 'left over\n');
+  assert.equal(api.skillInstall({ target }).dest, dest);
+  assert.equal(fs.readFileSync(path.join(dest, 'SKILL.md'), 'utf8'), bundled);
+  assert.ok(!fs.existsSync(path.join(dest, 'stale.md')));
 });
 
 test('skill install defaults to .agents/skills under the Inkan root, --claude to .claude/skills', () => {
