@@ -34,3 +34,9 @@ Extension trigger: if dogfooding shows `log -n 3` re-anchoring on the wrong narr
 * The trigger above is the only reason to grow lanes
 
 ## Decision History
+
+### 2026-09-24T03:54:56.790Z, outcome 2026-09-24-0353-z0vq
+
+Status: accepted -> accepted
+
+0019 (2026-09-24) considered lane isolation of decision records, first by deleting other lanes' decisions on a lane branch and then by per-worktree sparse-checkout, and rejected both on experiment evidence. Lanes stay a plain tag. The narrative problem this record's trigger anticipated is handled by protocol 12 reading the log only on resume, not by a lane-filtered log.

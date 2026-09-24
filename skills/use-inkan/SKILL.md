@@ -20,8 +20,10 @@ Run:
 
 ```sh
 inkan status
-inkan log -n 3
 ```
+
+Run `inkan log -n 3` only when resuming work that may be yours. New work
+starts from the seal rule in `AGENTS.md`, not from the log.
 
 An open outcome that is the work you were asked to do is the task at hand;
 continue it exactly as `AGENTS.md` directs. An open outcome that is not your

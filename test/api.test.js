@@ -42,7 +42,7 @@ test('init creates storage dirs and writes AGENTS.md', () => {
   const agents = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
   assert.match(agents, /^# Agent instructions/);
   assert.match(agents, /<!-- inkan -->/);
-  assert.match(agents, /<!-- inkan-protocol: 11 -->/);
+  assert.match(agents, /<!-- inkan-protocol: 12 -->/);
   assert.match(agents, /<!-- inkan-mode: repo -->/);
   assert.match(agents, /<!-- inkan-lang: en -->/);
   assert.match(agents, /Commit the outcome record with the work/);
@@ -91,7 +91,7 @@ test('init --lang upgrades only the language parts of an unmodified block', () =
 });
 
 test('init upgrades a block generated under an earlier protocol and still refuses hand edits', () => {
-  for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+  for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) {
     const root = tmpDir();
     const agentsFile = path.join(root, 'AGENTS.md');
     const marker = new RegExp(`<!-- inkan-protocol: ${version} -->`);
@@ -100,8 +100,15 @@ test('init upgrades a block generated under an earlier protocol and still refuse
     const result = api.init({ root });
     assert.equal(result.changed, true);
     const agents = fs.readFileSync(agentsFile, 'utf8');
-    assert.match(agents, /<!-- inkan-protocol: 11 -->/);
+    assert.match(agents, /<!-- inkan-protocol: 12 -->/);
     assert.match(agents, /<!-- inkan-mode: repo -->/);
+    // Protocol 12: new work states its scope before reading history, decisions
+    // name the part they constrain, and the log is a resume step (decision 0019).
+    assert.match(agents, /For new work, state the outcome and the scope it covers from the request and the repository's current structure, such as its README and top-level modules, before reading the outcome log or the decision records/);
+    assert.match(agents, /when the request names something general, such as the system, list the scopes that structure supports and ask which is meant/);
+    assert.match(agents, /A new decision record names the part of the project it constrains as the subject of its decision, and says so plainly when it binds the whole project/);
+    assert.match(agents, /Run `inkan status`, and `inkan log -n 3` only when resuming work that may be yours; new work starts from rule 1, not from the log/);
+    assert.doesNotMatch(agents, /Run `inkan status` and `inkan log -n 3`\./);
     // Protocol 10: sealed prose names repository-relative paths, not machine paths.
     assert.match(agents, /Write sealed outcome and decision prose for the published repository: name paths relative to the repository root, never a machine-local absolute path/);
     assert.match(agents, /so the record does not expose a checkout location and remains readable after a clone/);
@@ -137,7 +144,7 @@ test('init --local writes the local-only block; a bare init keeps the mode; --re
   const first = api.init({ root, local: true });
   assert.equal(first.changed, true);
   let agents = fs.readFileSync(agentsFile, 'utf8');
-  assert.match(agents, /<!-- inkan-protocol: 11 -->/);
+  assert.match(agents, /<!-- inkan-protocol: 12 -->/);
   assert.match(agents, /<!-- inkan-mode: local -->/);
   assert.match(agents, /in local-only mode/);
   assert.match(agents, /The record stays on this checkout and is not committed with the code/);
@@ -169,7 +176,15 @@ test('init --local upgrades an earlier protocol to local-only and still refuses 
   assert.match(agents, /Keep `\.inkan\/` on this checkout only; do not commit it/);
   assert.equal(api.init({ root }).changed, false);
 
-  const localBlock = api.protocolBlock('en', 11, 'local');
+  // A generated protocol 11 local block upgrades to protocol 12 and stays local.
+  fs.writeFileSync(agentsFile, `# Agent instructions\n\n${api.protocolBlock('en', 11, 'local')}\n`);
+  assert.equal(api.init({ root }).changed, true);
+  const upgraded = fs.readFileSync(agentsFile, 'utf8');
+  assert.match(upgraded, /<!-- inkan-protocol: 12 -->/);
+  assert.match(upgraded, /<!-- inkan-mode: local -->/);
+  assert.match(upgraded, /new work starts from rule 1, not from the log/);
+
+  const localBlock = api.protocolBlock('en', 12, 'local');
   const edited = localBlock.replace('Never report success', 'HAND EDITED');
   fs.writeFileSync(agentsFile, `# Agent instructions\n\n${edited}\n`);
   assert.throws(() => api.init({ root }), /edited by hand/);

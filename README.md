@@ -188,6 +188,12 @@ a re-read of the history:
 2026-09-03-0621-82qz  partial  Ship account recovery  (2/3 met)
 ```
 
+The log is for resuming work, not for starting it. New work states its
+scope from the request and the repository's structure before it reads the
+log or the decision records, because an agent that reads a long run of work
+on one part first tends to narrow a request about the whole system to that
+part (decision 0019).
+
 ## What Inkan refuses to do
 
 These are the product, not its limitations.
@@ -237,6 +243,12 @@ same dataset on three machines does not record it three times. Sealed
 outcome and decision prose is written for the published repository: paths
 are named relative to the repository root, never as a machine-local
 absolute path, so a clone does not inherit another checkout's location.
+New work states its scope from the request and the repository's structure
+before reading the outcome log or the decision records, and a request that
+names something general, such as the system, gets the plausible scopes
+listed back with a question. A new decision record names the part it
+constrains as its subject, such as sync rather than the whole product, so a
+later feature is not locked in by a rule that was never meant for it.
 Where the host plans before it changes, as
 Claude Code's plan mode does, the plan carries the outcome, its criteria,
 and its decisions in the words `inkan begin` will receive, so approving the
