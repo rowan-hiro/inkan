@@ -104,3 +104,9 @@ Protocol 11 (2026-09-17) implements 0018: the generated block carries <!-- inkan
 Status: accepted -> accepted
 
 Protocol 12 (2026-09-24) implements 0019. Rule 1 has new work state its scope from the request and the repository's structure before reading the outcome log or decision records, list the plausible scopes and ask when the request is general, and name the constrained part as the subject of a new decision record. Rule 4 reads inkan log -n 3 only when resuming. Hiro asked for this on 2026-09-24 after agents locked themselves into decisions written for another capability and narrowed a whole-system redesign to one index. The sentences are host-agnostic, so they belong in the block, per 0008; the use-inkan skill only points at rule 1 for new work. init upgrades generated protocols 1 through 11 to protocol 12, keeps local mode, and still refuses hand-edited blocks.
+
+### 2026-09-24T06:27:08.041Z, outcome 2026-09-24-0626-yykk
+
+Status: accepted -> accepted
+
+Protocol 13 (2026-09-24) revises rule 1 per the 0019 history: new work states its outcome and scope from the request and the repository's structure before running inkan status or reading history, names every part of that scope the request does not say itself as an assumption, and asks when an assumption would change the work. The protocol 12 trigger for requests that name something general is removed. init upgrades generated protocols 1 through 12 to protocol 13, keeps local mode, and still refuses hand-edited blocks.

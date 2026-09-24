@@ -244,9 +244,11 @@ outcome and decision prose is written for the published repository: paths
 are named relative to the repository root, never as a machine-local
 absolute path, so a clone does not inherit another checkout's location.
 New work states its scope from the request and the repository's structure
-before reading the outcome log or the decision records, and a request that
-names something general, such as the system, gets the plausible scopes
-listed back with a question. A new decision record names the part it
+before running `inkan status` or reading the outcome log or the decision
+records. Every part of that scope the request does not say itself is named
+as an assumption, and the agent asks when an assumption would change the
+work, so a scope filled in from recent history is visible before anything
+is sealed. A new decision record names the part it
 constrains as its subject, such as sync rather than the whole product, so a
 later feature is not locked in by a rule that was never meant for it.
 Where the host plans before it changes, as

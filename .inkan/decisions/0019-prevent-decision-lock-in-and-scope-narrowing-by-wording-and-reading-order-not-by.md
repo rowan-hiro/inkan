@@ -37,3 +37,9 @@ Protocol 12 changes two rules. Rule 1: for new work, state the outcome and the s
 * Agents with global memory, such as Codex, can still import scope from other projects
 
 ## Decision History
+
+### 2026-09-24T06:27:08.007Z, outcome 2026-09-24-0626-yykk
+
+Status: accepted -> accepted
+
+Protocol 13 (2026-09-24) revises the rule 1 scope sentence. Protocol 12 asked only when the request named something general, such as the system; Hiro pointed out that a general noun is one source of ambiguity among many, and a keyword trigger misses the rest. The original failure was an agent filling in scope from recent history without saying so, so protocol 13 targets the filling-in: every part of the scope the request does not say itself is named as an assumption, and the agent asks when an assumption would change the work. inkan status also moves after the scope is stated, since it prints open outcomes in full. Tested the same day in the vecdb setup with fresh Opus 5.5 and GPT-6-Sol agents: asked about this system, both covered every index and layer and listed their assumptions; after the reply whole system, both read the decision records and history and kept flat, ivfpq, tidal, storage, query, server, and benches in the final plan; asked about the whole system by name, neither asked about scope again and both listed only the assumptions that remained. Review by a Codex agent corrected how this record reads: the first driver is a risk, not a law, since the evidence only shows that per-worktree sparse-checkout fails, not every form of context isolation; and in the lock-in experiment, rewording 0002 and 0003 with sync as subject also narrowed what they required, so the finding is that decisions worded more broadly than intended constrain later features, and a model superseding such a decision is permitted conflict handling, not anchoring.
