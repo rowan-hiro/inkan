@@ -114,7 +114,7 @@ inkan begin "Address review of account recovery" \
     2026-09-06-0215-m3tq  open  Address second review of account recovery
 ```
 
-一轮很长的评审最后留下的是一条可以顺着读的链，而不是一堆需要自己拼起来的零散 outcome。一次修改同时跟进多个已关闭的 outcome 时，重复使用 `--follows`。
+一轮很长的评审最后留下的是一条可以顺着读的链，而不是一堆需要自己拼起来的零散 outcome。一次修改同时跟进多个已关闭的 outcome 时，重复使用 `--follows`。如果 `begin` 时漏写了关联，可以用 `amend --reason <text> --follows <id>` 给这个 open outcome 补上，前提是被跟进的 outcome 比它 seal 得早：跟进总是发生在被跟进的工作之后。
 
 ## 阅读历史时使用关联信息
 
@@ -211,7 +211,7 @@ Inkan 本身也这样开发：工作先作为 outcome 被 seal，结束时记录
 |---|---|---|
 | `inkan init [--lang <tag>] [--claude] [--local \| --repo]` | 写入或升级 `AGENTS.md` 中由 Inkan 管理的 block；创建 `.inkan/`。`--local` 把 `.inkan/` 留在本机 checkout；`--repo` 是新仓库的默认。`--claude` 还会把 `CLAUDE.md` 软链到 `AGENTS.md`。 | block 曾被手工编辑；同时给出 `--local` 与 `--repo`；已存在一个不是该 symlink 的 `CLAUDE.md`。 |
 | `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--follows <id>]... [--lane <tag>]` | Seal 一个新 outcome，并打印其 id。`--follows` 写明这项工作跟进的已关闭 outcome，不会向它写入任何内容。其他 open outcome 会在 stderr 的 notice 中被点名，但不会受到任何改动。 | decision 不存在；`--follows` 的 id 格式错误、不存在或仍然 open。 |
-| `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [<id>]` | 追加 amendment，并打印新的 contract hash。 | 没有 reason；没有 open outcome；存在多个 open outcome，却没有用 `<id>` 明确指定目标。 |
+| `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [--follows <id>]... [<id>]` | 追加 amendment，并打印新的 contract hash。`--follows` 补上这项工作跟进的已关闭 outcome，不会向它写入任何内容。 | 没有 reason；没有 open outcome；存在多个 open outcome，却没有用 `<id>` 明确指定目标；`--follows` 的 id 格式错误、不存在、仍然 open，或者 seal 得比被 amend 的 outcome 晚。 |
 | `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | 记录 disposition 并关闭 outcome。状态由结果推导：全部 met 为 `completed`，任一 unmet 为 `partial`。打印 outcome id、状态和供 commit 使用的关联 trailer。 | 仍生效的标准缺少 disposition（以 `-s abandoned` 关闭时除外）；没有 note。 |
 | `inkan status` | 逐字打印所有 open outcome：seal 时间、hash、lane、带编号的标准、附 reason 的 amendment，以及关联的 decision。 | 永不拒绝。 |
 | `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | 每个 outcome 打印一行，最新的在前，默认 20 条；跟进的 outcome 会在行尾写明它跟进的对象。`<id>` 会完整打印一项 outcome，包括 disposition、note，以及它跟进和跟进它的整条链。filter 可以组合。 | 永不拒绝。 |
@@ -230,7 +230,7 @@ Decision status 包括 `proposed`、`accepted`、`rejected`、`deferred`、`depr
   decisions/NNNN-slug.md   MADR 记录
 ```
 
-`2026-09-03-1432-k7m2` 这样的 outcome id，由 outcome 开始时的 UTC 日期与分钟，加上四个随机字符组成。因此 id 可以按时间排序，两个 branch 也几乎不可能发生冲突。每个 outcome 文件包含一个 `begin` event、任意数量的 `amend` event，以及最多一个 `end` event。所谓 open outcome，就是一个尚无 `end` 的文件。跟进的 outcome 在自己的 `begin` event 里列出它跟进的已关闭 outcome，不向它们的文件写入任何内容；要找出跟进某个 outcome 的记录，只需读取当天及之后开始的文件。
+`2026-09-03-1432-k7m2` 这样的 outcome id，由 outcome 开始时的 UTC 日期与分钟，加上四个随机字符组成。因此 id 可以按时间排序，两个 branch 也几乎不可能发生冲突。每个 outcome 文件包含一个 `begin` event、任意数量的 `amend` event，以及最多一个 `end` event。所谓 open outcome，就是一个尚无 `end` 的文件。跟进的 outcome 在自己的 `begin` 或 `amend` event 里列出它跟进的已关闭 outcome，不向它们的文件写入任何内容。跟进总是 seal 在被跟进的 outcome 之后，而 id 记录的是 seal 时的 UTC 时间，与本地时区无关，所以要找出跟进某个 outcome 的记录，只需读取它的 UTC 日期当天及之后开始的文件。
 
 contract hash 是一个 SHA-256，计算范围包括 outcome 文本、带 withdrawn 标记的验收标准、关联的 decision，以及每次 amendment 的 reason 和 addition。lane 标签和跟进关系不在其中，所以引入跟进关系之后，此前的 hash 都保持不变。`end` 把这个 hash 与 disposition 和 note 一起保存。读取时仍会检查 event 格式并拒绝损坏的记录，但不会读取项目文件或与 commit 比较。旧 v1 记录中的 Git 信息可以继续读取，不会被改写。
 

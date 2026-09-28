@@ -39,6 +39,17 @@ export function computeContractHash({ outcome, criteria, decisions, amendments }
   return crypto.createHash('sha256').update(canonicalJSON(payload)).digest('hex');
 }
 
+/** Adds a begin or amend event's follow links to `record`, refusing anything but outcome ids. */
+function addFollows(record, event, where) {
+  const follows = event.follows ?? [];
+  if (!Array.isArray(follows) || follows.some((f) => typeof f !== 'string' || !OUTCOME_ID_RE.test(f))) {
+    throw corrupt(where, `${event.type} follows must be a list of outcome ids`);
+  }
+  for (const f of follows) {
+    if (!record.follows.includes(f)) record.follows.push(f);
+  }
+}
+
 function positiveInteger(value) {
   const n = Number(value);
   return Number.isInteger(n) && n >= 1 ? n : null;
@@ -93,13 +104,7 @@ export function fold(events, file) {
       for (const d of event.decisions ?? []) {
         if (!record.decisions.includes(d)) record.decisions.push(d);
       }
-      const follows = event.follows ?? [];
-      if (!Array.isArray(follows) || follows.some((f) => typeof f !== 'string' || !OUTCOME_ID_RE.test(f))) {
-        throw corrupt(where, 'begin follows must be a list of outcome ids');
-      }
-      for (const f of follows) {
-        if (!record.follows.includes(f)) record.follows.push(f);
-      }
+      addFollows(record, event, where);
       return;
     }
 
@@ -122,6 +127,7 @@ export function fold(events, file) {
       for (const d of event.decisions ?? []) {
         if (!record.decisions.includes(d)) record.decisions.push(d);
       }
+      addFollows(record, event, where);
       record.amendments.push({
         ts: event.ts,
         reason: event.reason,

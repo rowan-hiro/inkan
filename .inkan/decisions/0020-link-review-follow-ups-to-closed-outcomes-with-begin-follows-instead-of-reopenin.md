@@ -37,3 +37,9 @@ The subject of this record is how outcomes link to earlier outcomes. begin --fol
 * Protocol 14 is a new version with an upgrade path in init, as 0008 requires
 
 ## Decision History
+
+### 2026-09-28T08:44:51.327Z, outcome 2026-09-28-0842-6sfc
+
+Status: accepted -> accepted
+
+amend now takes --follows, repeatable, so a link left out at begin can be added to the open outcome; this revises the sentence that amend does not take --follows and the consequence that an outcome begun without --follows cannot be linked afterwards. The maintainer asked for it on 2026-09-28, and asked whether the UTC-day scan in log <id> misses a follow-up whose local day crosses a UTC day, as in UTC+10. It does not: ids and timestamps are UTC, and the scan relies only on a follow-up being sealed after what it follows. amend --follows could break that, since an outcome begun before another could link to it later, so amend refuses a followed outcome sealed after the amended one; with begin, which only follows closed outcomes, a follow-up is always sealed after what it follows. The thread scan reads links from begin and amend events. The link stays out of the contract hash, and Inkan 0.7.0 still reads an amend event that carries it. Protocol 14 is unchanged: rule 5 already has a follow-up name what it follows, and amend --follows is the remedy when begin left it out.

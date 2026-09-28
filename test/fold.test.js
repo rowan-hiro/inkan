@@ -223,3 +223,11 @@ test('a begin follows that is not a list of outcome ids is corrupt', () => {
     assert.throws(() => fold([begin({ follows })], FILE), /begin follows must be a list of outcome ids/);
   }
 });
+
+test('amend follows adds to the begin links and stays out of the contract hash', () => {
+  const linked = [begin({ follows: ['2025-12-31-2300-bbbb'] }), amend({ follows: ['2025-12-31-2300-bbbb', '2025-12-30-cccc'] })];
+  const record = fold(linked, FILE);
+  assert.deepEqual(record.follows, ['2025-12-31-2300-bbbb', '2025-12-30-cccc']);
+  assert.equal(record.contractHash, fold([begin(), amend()], FILE).contractHash);
+  assert.throws(() => fold([begin(), amend({ follows: ['nope'] })], FILE), /amend follows must be a list of outcome ids/);
+});

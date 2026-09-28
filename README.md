@@ -162,7 +162,9 @@ the order the outcomes were sealed, marking the one asked for:
 
 A long review leaves one thread to read, not scattered outcomes to
 reconcile. Repeat `--follows` when one change follows up several closed
-outcomes.
+outcomes. When `begin` left the link out, `amend --reason <text> --follows
+<id>` adds it to the open outcome, as long as the followed outcome was
+sealed before it: a follow-up always comes after what it follows.
 
 ## Commit references when reading history
 
@@ -348,7 +350,7 @@ is not part of the generated agent protocol.
 |---|---|---|
 | `inkan init [--lang <tag>] [--claude] [--local \| --repo]` | Writes or upgrades the managed block in `AGENTS.md`; creates `.inkan/`. `--local` keeps `.inkan/` on this checkout; `--repo` is the default for a new repository. `--claude` also links `CLAUDE.md` to `AGENTS.md`. | The block was hand-edited. `--local` together with `--repo`. A `CLAUDE.md` exists that is not that symlink. |
 | `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--follows <id>]... [--lane <tag>]` | Seals a new outcome; prints its id. `--follows` names a closed outcome this work follows up and writes nothing to it. Any other open outcome is named in a notice on stderr and left untouched. | An unknown decision. A `--follows` id that is malformed, unknown, or still open. |
-| `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [<id>]` | Appends an amendment; prints the new contract hash. | No reason. No open outcome. Ambiguous open outcome without `<id>`. |
+| `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [--follows <id>]... [<id>]` | Appends an amendment; prints the new contract hash. `--follows` adds a closed outcome this work follows up and writes nothing to it. | No reason. No open outcome. Ambiguous open outcome without `<id>`. A `--follows` id that is malformed, unknown, still open, or sealed after the amended outcome. |
 | `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | Records dispositions and closes. Status is derived: all met is `completed`, any unmet is `partial`. Prints the outcome id, status, and commit reference trailer. | A live criterion has no disposition, unless closing with `-s abandoned`. No note. |
 | `inkan status` | Prints every open outcome verbatim: sealed time, hash, lane, criteria with indexes, amendments with reasons, linked decisions. | Never. |
 | `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | One line per outcome, newest first, default 20; a follow-up's line names what it follows. `<id>` prints one outcome in full, including dispositions and note, and the thread of outcomes it follows and that follow it. Filters combine. | Never. |
@@ -372,10 +374,11 @@ An outcome id such as `2026-09-03-1432-k7m2` is the UTC date and minute the
 outcome was begun plus four random characters, so ids sort chronologically
 and two branches essentially never collide. Each outcome file holds a
 `begin` event, any `amend` events, and at most one `end` event. An open
-outcome is simply a file with no `end` yet. A follow-up's `begin` event
-lists the closed outcomes it follows; nothing is written to theirs, and the
-outcomes that follow one are found by reading the files begun on its day or
-later.
+outcome is simply a file with no `end` yet. A follow-up's `begin` or
+`amend` event lists the closed outcomes it follows; nothing is written to
+theirs. A follow-up is always sealed after what it follows, and ids carry
+the UTC time of sealing whatever the local time zone, so the outcomes that
+follow one are found by reading the files begun on its UTC day or later.
 
 The contract hash is a SHA-256 over the outcome text, its criteria with
 their withdrawn flags, the linked decisions, and every amendment's reason

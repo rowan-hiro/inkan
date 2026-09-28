@@ -107,9 +107,10 @@ function resolveFollowLinks(root, ids) {
  * Every outcome `record` follows and every outcome that follows it, directly
  * or through others, with `record` itself, in the order they were sealed;
  * `status` and `outcome` are null for a missing file. Earlier outcomes are
- * read along the links. A follow-up is begun after what it follows has
- * closed, so followers are looked for only among ids from the record's UTC
- * day on (decision 0009).
+ * read along the links. A follow-up, linked by begin or by amend, is always
+ * sealed after what it follows (validateFollows), and ids carry the UTC time
+ * of sealing, so followers are looked for only among ids from the record's
+ * UTC day on (decision 0009).
  */
 function followThread(root, record) {
   const members = new Map([[record.id, record]]);
@@ -127,17 +128,18 @@ function followThread(root, record) {
   for (const id of store.listOutcomeIds(root)) {
     if (id === record.id || store.idSortKey(id) < day) continue;
     const events = store.readOutcomeEvents(root, id);
-    const follows = events[0]?.follows;
-    if (Array.isArray(follows) && follows.length > 0) candidates.set(id, events);
+    if (events.some((e) => Array.isArray(e?.follows) && e.follows.length > 0)) {
+      candidates.set(id, fold(events, store.outcomeLabel(id)));
+    }
   }
   // Ids within one minute do not sort by time, so repeat until nothing is added.
   const reached = new Set([record.id]);
   for (let grew = true; grew; ) {
     grew = false;
-    for (const [id, events] of candidates) {
-      if (reached.has(id) || !events[0].follows.some((f) => reached.has(f))) continue;
+    for (const [id, candidate] of candidates) {
+      if (reached.has(id) || !candidate.follows.some((f) => reached.has(f))) continue;
       reached.add(id);
-      members.set(id, fold(events, store.outcomeLabel(id)));
+      members.set(id, candidate);
       grew = true;
     }
   }
@@ -182,13 +184,23 @@ function resolveTarget(root, id) {
   return open;
 }
 
-/** `ids` without duplicates, each a closed outcome in this repository (decision 0020). */
-function validateFollows(root, ids) {
+/**
+ * `ids` without duplicates, each a closed outcome in this repository and,
+ * when `follower` is an outcome being amended, sealed before it. A follow-up
+ * is always sealed after what it follows, which keeps the thread in order and
+ * lets followThread look for followers from the followed outcome's day on
+ * (decision 0020).
+ */
+function validateFollows(root, ids, follower = null) {
   const unique = [...new Set(ids)];
   for (const id of unique) {
     if (!store.OUTCOME_ID_RE.test(id)) throw new InkanError(`malformed outcome id "${id}"`);
-    if (!loadRecord(root, id).closed) {
+    const followed = loadRecord(root, id);
+    if (!followed.closed) {
       throw new InkanError(`outcome "${id}" is still open; --follows names a closed outcome`);
+    }
+    if (follower && !(followed.sealedAt < follower.sealedAt)) {
+      throw new InkanError(`outcome "${id}" was sealed after "${follower.id}"; a follow-up follows earlier work`);
     }
   }
   return unique;
@@ -231,11 +243,12 @@ export function begin({ root, outcome, accept = [], decision = [], lane, follows
   /* unreachable */
 }
 
-export function amend({ root, id, reason, addition, accept = [], withdraw = [], decision = [] }) {
+export function amend({ root, id, reason, addition, accept = [], withdraw = [], decision = [], follows = [] }) {
   const resolvedRoot = resolveRoot(root);
   if (!reason || !reason.trim()) throw new InkanError('amend requires --reason');
   validateDecisionIds(resolvedRoot, decision);
   const record = resolveTarget(resolvedRoot, id);
+  const followed = validateFollows(resolvedRoot, follows, record);
 
   const withdrawIndexes = withdraw.map((raw) => {
     const n = Number(raw);
@@ -246,7 +259,7 @@ export function amend({ root, id, reason, addition, accept = [], withdraw = [], 
     const criterion = record.criteria[n - 1];
     if (!criterion || criterion.withdrawn) throw new InkanError(`cannot withdraw unknown or already-withdrawn criterion ${n}`);
   }
-  store.appendEvent(resolvedRoot, record.id, {
+  const event = {
     v: 1,
     type: 'amend',
     id: record.id,
@@ -256,7 +269,9 @@ export function amend({ root, id, reason, addition, accept = [], withdraw = [], 
     criteria: accept,
     withdraw: withdrawIndexes,
     decisions: decision,
-  });
+  };
+  if (followed.length > 0) event.follows = followed;
+  store.appendEvent(resolvedRoot, record.id, event);
   const updated = loadRecord(resolvedRoot, record.id);
   return { id: record.id, contractHash: computeContractHash(updated) };
 }

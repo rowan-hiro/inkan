@@ -598,6 +598,42 @@ test('begin --follows refuses a malformed, unknown, or open outcome and writes n
   assert.equal(count(), before);
 });
 
+test('amend --follows adds a closed outcome sealed earlier and leaves its file unchanged', () => {
+  const root = repo();
+  const first = closedOutcome(root, 'Ship account recovery');
+  const second = closedOutcome(root, 'Ship audit log');
+  const followUp = api.begin({ root, outcome: 'Fix review findings', accept: ['a'], follows: [first] }).id;
+  const before = fs.readFileSync(store.outcomeFile(root, second));
+
+  api.amend({ root, reason: 'review of the audit log asked for the same fix', follows: [second, first] });
+  const events = store.readOutcomeEvents(root, followUp);
+  assert.deepEqual(events[1].follows, [second, first]);
+  assert.equal(Object.hasOwn(events[0], 'follows'), true);
+  assert.deepEqual(fs.readFileSync(store.outcomeFile(root, second)), before);
+  assert.deepEqual(api.status({ root }).open[0].followLinks, [
+    { id: first, status: 'completed' },
+    { id: second, status: 'completed' },
+  ]);
+  // An amendment without --follows writes the event it always did.
+  api.amend({ root, reason: 'plain' });
+  assert.equal(Object.hasOwn(store.readOutcomeEvents(root, followUp)[2], 'follows'), false);
+});
+
+test('amend --follows refuses a malformed, unknown, open, or later outcome and appends nothing', () => {
+  const root = repo();
+  const amended = api.begin({ root, outcome: 'begun first', accept: ['a'] }).id;
+  const later = closedOutcome(root, 'sealed after it');
+  const open = api.begin({ root, outcome: 'still going', accept: ['a'] }).id;
+  const before = fs.readFileSync(store.outcomeFile(root, amended));
+  const attempt = (follows) => () => api.amend({ root, id: amended, reason: 'link it', follows });
+  assert.throws(attempt(['../escape']), /malformed outcome id/);
+  assert.throws(attempt(['2026-01-01-0000-zzzz']), /unknown outcome "2026-01-01-0000-zzzz"/);
+  assert.throws(attempt([open]), /is still open; --follows names a closed outcome/);
+  assert.throws(attempt([amended]), /is still open/);
+  assert.throws(attempt([later]), new RegExp(`"${later}" was sealed after "${amended}"; a follow-up follows earlier work`));
+  assert.deepEqual(fs.readFileSync(store.outcomeFile(root, amended)), before);
+});
+
 test('status and log <id> name each followed outcome with its status, or missing', () => {
   const root = repo();
   const first = closedOutcome(root, 'first');
@@ -641,6 +677,20 @@ test('log <id> returns the thread of outcomes it follows and that follow it, old
   const expected = [{ id: a, status: null, outcome: null }, ...summary([b, c])];
   fs.rmSync(store.outcomeFile(root, a));
   assert.deepEqual(thread(c), expected);
+});
+
+test('log <id> finds a follower linked by amend', () => {
+  const root = repo();
+  const a = closedOutcome(root, 'Ship account recovery');
+  const b = api.begin({ root, outcome: 'Fix review findings', accept: ['a'] }).id;
+  assert.deepEqual(api.log({ root, id: a }).record.thread, [
+    { id: a, status: 'completed', outcome: 'Ship account recovery' },
+  ]);
+  api.amend({ root, id: b, reason: 'forgot the link at begin', follows: [a] });
+  assert.deepEqual(api.log({ root, id: a }).record.thread, [
+    { id: a, status: 'completed', outcome: 'Ship account recovery' },
+    { id: b, status: 'open', outcome: 'Fix review findings' },
+  ]);
 });
 
 test('log <id> finds followers whose ids sort before it within the same minute', () => {

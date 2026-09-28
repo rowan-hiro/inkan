@@ -257,6 +257,14 @@ test('begin --follows links a closed outcome, and log and status print the link 
   const refused = run(INKAN, ['begin', 'x', '--follows', followUp], dir);
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, /is still open; --follows names a closed outcome/);
+
+  // amend --follows takes the flag's value as the followed id, not the target.
+  assert.equal(run(INKAN, ['end', '--met', '1', '--note', 'fixed'], dir).status, 0);
+  const late = run(INKAN, ['begin', 'Second review round', '--accept', 'three'], dir).stdout.trim();
+  const amend = run(INKAN, ['amend', '--reason', 'forgot the link', '--follows', followUp, late], dir);
+  assert.equal(amend.status, 0);
+  assert.match(run(INKAN, ['status'], dir).stdout, new RegExp(`^  follows: ${followUp} \\(completed\\)$`, 'm'));
+  assert.match(run(INKAN, ['log', first], dir).stdout, new RegExp(`^    ${late}  open  Second review round$`, 'm'));
 });
 
 test('skill install prints a repository-relative path, never a machine-local absolute path', () => {

@@ -31,10 +31,11 @@ Commands:
       as review changes to closed work; the followed outcome is unchanged.
       Use --lane only where the repository already files outcomes by lane.
   amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]...
-        [--decision <id>]... [<id>]
+        [--decision <id>]... [--follows <id>]... [<id>]
       Append an amendment to the open outcome; prints the new contract hash.
       --reason is required. Added criteria continue the numbering;
-      --withdraw takes a criterion number. The original text is kept.
+      --withdraw takes a criterion number. --follows adds a closed outcome
+      sealed before this one. The original text is kept.
   end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>
       Record dispositions and close an outcome; prints the Inkan-Outcome
       trailer to put in the landing commit. Repeat --met or --unmet once
@@ -294,6 +295,7 @@ function run(argv) {
           accept: { type: 'string', multiple: true, default: [] },
           withdraw: { type: 'string', multiple: true, default: [] },
           decision: { type: 'string', multiple: true, default: [] },
+          follows: { type: 'string', multiple: true, default: [] },
         };
         const { values, positionals } = parseArgs({ args: rest, options: opts, allowPositionals: true });
         const { id, addition } = splitAmendPositionals(positionals);
