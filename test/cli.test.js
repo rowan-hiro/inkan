@@ -213,6 +213,43 @@ test('decision add/show/list/update through the CLI, and amend accepts a legacy 
   assert.equal(amend.status, 0);
 });
 
+test('records that share an id: show prints each after its path, status names links by file, doctor exits 1', () => {
+  const dir = tmpDir();
+  run(INKAN, ['init'], dir);
+  run(INKAN, ['decision', 'add', 'Pick a database', '--context', 'ctx', '--decision', 'dec'], dir);
+  const legacyId = '2026-01-01-0000-lgcy';
+  const event = { v: 1, type: 'begin', id: legacyId, ts: '2026-01-01T00:00:00.000Z', outcome: 'legacy', criteria: [], decisions: ['0001'], lane: null };
+  fs.writeFileSync(path.join(dir, '.inkan', 'outcomes', `${legacyId}.jsonl`), `${JSON.stringify(event)}\n`);
+  const begun = run(INKAN, ['begin', 'x', '--decision', '0001'], dir).stdout.trim();
+  assert.match(run(INKAN, ['status'], dir).stdout, /\n  decisions: 0001 \(accepted\)\n/);
+
+  // A rebase brings in upstream's own record numbered 0001.
+  const decisionsDir = path.join(dir, '.inkan', 'decisions');
+  const ours = fs.readFileSync(path.join(decisionsDir, '0001-pick-a-database.md'), 'utf8');
+  fs.writeFileSync(path.join(decisionsDir, '0001-pick-a-queue.md'), ours.replace('# 1. Pick a database', '# 1. Pick a queue'));
+
+  const show = run(INKAN, ['decision', 'show', '1'], dir);
+  assert.equal(show.status, 0);
+  const pickQueue = ours.replace('# 1. Pick a database', '# 1. Pick a queue');
+  assert.equal(
+    show.stdout,
+    `==> .inkan/decisions/0001-pick-a-database.md <==\n${ours}\n==> .inkan/decisions/0001-pick-a-queue.md <==\n${pickQueue}`
+  );
+  assert.equal(run(INKAN, ['decision', 'show', '0001-pick-a-queue'], dir).stdout, pickQueue);
+
+  const status = run(INKAN, ['status'], dir).stdout;
+  assert.match(status, new RegExp(`\\[${begun}\\] open[\\s\\S]*\n  decisions: 0001-pick-a-database \\(accepted\\)\n`));
+  assert.match(status, /\n  decisions: 0001 \(ambiguous: 2 records\)\n/);
+
+  const update = run(INKAN, ['decision', 'update', '1', '--status', 'superseded', '--reason', 'why'], dir);
+  assert.equal(update.status, 1);
+  assert.match(update.stderr, /decision "0001" names 2 records \(0001-pick-a-database\.md, 0001-pick-a-queue\.md\)/);
+
+  const doctor = run(INKAN, ['doctor'], dir);
+  assert.equal(doctor.status, 1);
+  assert.match(doctor.stdout, /^decision 0001: duplicate id \(0001-pick-a-database\.md, 0001-pick-a-queue\.md\); /);
+});
+
 test('begin beside another open outcome prints the new id on stdout and names the other on stderr', () => {
   const dir = tmpDir();
   assert.equal(run(INKAN, ['init'], dir).status, 0);

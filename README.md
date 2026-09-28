@@ -312,6 +312,29 @@ An outcome names the decisions it is bound by with `--decision <id>` on
 `begin` or `amend`. They are constraints on the work, never a gate on
 closing it.
 
+A new record takes one more than the highest number present. A repository
+that carries another's history and takes its new records by rebase can
+therefore end up with two records under one number, and Inkan never renames
+or renumbers either of them. Wherever an id is taken, a decision file name,
+with or without `.md`, or a unique prefix of one such as `0013-open`, names
+one record. `decision show` with a shared id prints every record that
+carries it; `begin`, `amend`, and `decision update` refuse the shared id and
+name each file; `doctor` keeps reporting it. `begin` and `amend` also record
+the file each link resolved to, so a link stays with its record after
+another record with the same number arrives. A link recorded without its
+file, by an earlier release, is shown as ambiguous rather than as whichever
+record sorts first.
+
+To keep its own records apart from upstream's, the derived repository
+commits `.inkan/config.json`:
+
+```json
+{ "decisionStart": 1001 }
+```
+
+`decision add` then numbers from 1001, or from one more than the highest
+id when that is higher, while upstream keeps counting below it.
+
 Inkan's own design is recorded this way, from the boundary in `0001`
 onward. There is no separate design document; `inkan decision list` prints
 the index.
@@ -349,15 +372,15 @@ is not part of the generated agent protocol.
 | Command | Effect | Refuses when |
 |---|---|---|
 | `inkan init [--lang <tag>] [--claude] [--local \| --repo]` | Writes or upgrades the managed block in `AGENTS.md`; creates `.inkan/`. `--local` keeps `.inkan/` on this checkout; `--repo` is the default for a new repository. `--claude` also links `CLAUDE.md` to `AGENTS.md`. | The block was hand-edited. `--local` together with `--repo`. A `CLAUDE.md` exists that is not that symlink. |
-| `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--follows <id>]... [--lane <tag>]` | Seals a new outcome; prints its id. `--follows` names a closed outcome this work follows up and writes nothing to it. Any other open outcome is named in a notice on stderr and left untouched. | An unknown decision. A `--follows` id that is malformed, unknown, or still open. |
-| `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [--follows <id>]... [<id>]` | Appends an amendment; prints the new contract hash. `--follows` adds a closed outcome this work follows up and writes nothing to it. | No reason. No open outcome. Ambiguous open outcome without `<id>`. A `--follows` id that is malformed, unknown, still open, or sealed after the amended outcome. |
+| `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--follows <id>]... [--lane <tag>]` | Seals a new outcome; prints its id. `--decision` takes an id or a decision file name and records the file it resolved to. `--follows` names a closed outcome this work follows up and writes nothing to it. Any other open outcome is named in a notice on stderr and left untouched. | An unknown decision, or an id that several records share. A `--follows` id that is malformed, unknown, or still open. |
+| `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [--follows <id>]... [<id>]` | Appends an amendment; prints the new contract hash. `--decision` works as on `begin`. `--follows` adds a closed outcome this work follows up and writes nothing to it. | No reason. No open outcome. Ambiguous open outcome without `<id>`. An unknown decision, or an id that several records share. A `--follows` id that is malformed, unknown, still open, or sealed after the amended outcome. |
 | `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | Records dispositions and closes. Status is derived: all met is `completed`, any unmet is `partial`. Prints the outcome id, status, and commit reference trailer. | A live criterion has no disposition, unless closing with `-s abandoned`. No note. |
 | `inkan status` | Prints every open outcome verbatim: sealed time, hash, lane, criteria with indexes, amendments with reasons, linked decisions. | Never. |
-| `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | One line per outcome, newest first, default 20; a follow-up's line names what it follows. `<id>` prints one outcome in full, including dispositions and note, and the thread of outcomes it follows and that follow it. Filters combine. | Never. |
-| `inkan doctor` | Optional, read-only diagnostic. Folds every outcome and parses every decision; reports corrupt files, id mismatches, duplicate decision ids, and dangling decision links. Exit 0 clean, 1 problems. | Never. |
-| `inkan decision add "<title>" --context <text> --decision <text> [--driver <text>]... [--option <text>]... [--consequence <text>]... [-s <status>]` | Writes a numbered MADR file; prints its repository-relative path. | Missing required sections. |
-| `inkan decision update <id> --status <status> --reason <text>` | Appends a dated history entry and sets the new status. Names the open outcome when there is one. Never edits Context or Decision Outcome. | Unknown id or status. |
-| `inkan decision list [-s <status>]` / `inkan decision show <id>` | Read-only. `show` accepts `2`, `02`, or `0002`. | Never. |
+| `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | One line per outcome, newest first, default 20; a follow-up's line names what it follows. `<id>` prints one outcome in full, including dispositions and note, and the thread of outcomes it follows and that follow it. `--decision` with an id matches every link to it; with a file name, only links that resolve to that file. Filters combine. | Never. |
+| `inkan doctor` | Optional, read-only diagnostic. Folds every outcome and parses every decision; reports corrupt files, id mismatches, duplicate decision ids, and dangling decision links. A duplicate id is reported once with every file that carries it, and stays a problem. Exit 0 clean, 1 problems. | Never. |
+| `inkan decision add "<title>" --context <text> --decision <text> [--driver <text>]... [--option <text>]... [--consequence <text>]... [-s <status>]` | Writes a numbered MADR file; prints its repository-relative path. Numbers from `decisionStart` in `.inkan/config.json` when that is higher. | Missing required sections. A malformed `.inkan/config.json`. |
+| `inkan decision update <id> --status <status> --reason <text>` | Appends a dated history entry and sets the new status. Names the open outcome when there is one. Never edits Context or Decision Outcome. | Unknown id or status. An id that several records share. |
+| `inkan decision list [-s <status>]` / `inkan decision show <id>` | Read-only. `show` accepts `2`, `02`, `0002`, or a decision file name; with an id that several records share, it prints each record after its path. | Never. |
 
 Decision statuses are `proposed`, `accepted`, `rejected`, `deferred`,
 `deprecated`, and `superseded`.
@@ -368,6 +391,7 @@ Decision statuses are `proposed`, `accepted`, `rejected`, `deferred`,
 .inkan/
   outcomes/<id>.jsonl      one append-only file per outcome
   decisions/NNNN-slug.md   MADR records
+  config.json              optional; decisionStart
 ```
 
 An outcome id such as `2026-09-03-1432-k7m2` is the UTC date and minute the
@@ -382,8 +406,9 @@ follow one are found by reading the files begun on its UTC day or later.
 
 The contract hash is a SHA-256 over the outcome text, its criteria with
 their withdrawn flags, the linked decisions, and every amendment's reason
-and addition. The lane tag and follow links are not part of it, so adding
-them left every earlier hash as it was. `end` stores that contract hash with the dispositions and
+and addition. The lane tag, follow links, and the files decision links
+resolved to are not part of it, so adding them left every earlier hash as
+it was. `end` stores that contract hash with the dispositions and
 note. Readers enforce the event format and reject corrupt records; they
 do not inspect project files or compare the record with a commit. Existing
 v1 records that contain Git metadata remain readable without being rewritten.

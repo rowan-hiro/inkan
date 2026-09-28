@@ -21,6 +21,7 @@ export class InkanError extends Error {
 const SKILL_SOURCE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'use-inkan');
 
 const DECISION_ID_RE = /^\d{4}$/;
+const DECISION_NAME_RE = /^\d{4}-/;
 const LANG_RE = /^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{2,8})*$/;
 
 function resolveRoot(root) {
@@ -48,36 +49,109 @@ function openRecords(root) {
   return allRecords(root).filter((r) => !r.closed);
 }
 
-/** The decision file whose filename starts with `<id>-`, or null. */
-function findDecisionFile(root, id) {
+/** Every decision file name under `.inkan/decisions/`, sorted. */
+function decisionFileNames(root) {
   const dir = store.decisionsDir(root);
-  if (!fs.existsSync(dir)) return null;
-  const match = fs.readdirSync(dir).find((name) => name.startsWith(`${id}-`) && name.endsWith('.md'));
-  return match ? path.join(dir, match) : null;
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((name) => name.endsWith('.md'))
+    .sort();
 }
 
-function validateDecisionIds(root, ids) {
-  for (const id of ids) {
-    if (!DECISION_ID_RE.test(id)) throw new InkanError(`malformed decision id "${id}" (expected four digits)`);
-    if (!findDecisionFile(root, id)) throw new InkanError(`unknown decision "${id}"; add it first with "inkan decision add"`);
+/** The file names among `names` that carry decision `id`. */
+function filesForId(names, id) {
+  return names.filter((name) => name.startsWith(`${id}-`));
+}
+
+/**
+ * Parses a decision reference: a bare id (`2`, `02`, or `0002`, or exactly
+ * four digits when `fourDigits`), or a decision file name with or without
+ * `.md`, or a prefix of one that includes the id, such as `0002-pick`.
+ * Returns `{ id }` for a bare id and `{ id, stem }` for a name.
+ */
+function parseDecisionRef(raw, { fourDigits = false } = {}) {
+  const s = String(raw);
+  if (fourDigits ? DECISION_ID_RE.test(s) : /^\d{1,4}$/.test(s)) return { id: String(Number(s)).padStart(4, '0') };
+  if (DECISION_NAME_RE.test(s)) return { id: s.slice(0, 4), stem: s.replace(/\.md$/, '') };
+  const digits = fourDigits ? 'four digits' : 'digits, e.g. 2, 02, or 0002';
+  throw new InkanError(`malformed decision id "${raw}" (expected ${digits}, or a decision file name)`);
+}
+
+/** The file names among `names` that `ref` matches: every file carrying a
+ * bare id; for a name, the file it names exactly, else every file it prefixes. */
+function matchDecisionRef(names, ref) {
+  if (ref.stem === undefined) return filesForId(names, ref.id);
+  const exact = `${ref.stem}.md`;
+  if (names.includes(exact)) return [exact];
+  return names.filter((name) => name.startsWith(ref.stem));
+}
+
+function ambiguousDecision(ref, files) {
+  return new InkanError(
+    `decision "${ref.stem ?? ref.id}" names ${files.length} records (${files.join(', ')}); name one by its file name`
+  );
+}
+
+/** `{ id, file }` for the one decision file `raw` names; refuses a reference that names none or several. */
+function requireOneDecisionFile(names, raw, { fourDigits = false, unknownHint = '' } = {}) {
+  const ref = parseDecisionRef(raw, { fourDigits });
+  const files = matchDecisionRef(names, ref);
+  if (files.length === 0) throw new InkanError(`unknown decision "${ref.stem ?? ref.id}"${unknownHint}`);
+  if (files.length > 1) throw ambiguousDecision(ref, files);
+  return { id: ref.id, file: files[0] };
+}
+
+/**
+ * Resolves each `--decision` reference to the one file it names, before
+ * anything is written. Returns the ids, which the contract hash covers, and
+ * the file names the links resolved to, both without duplicates. An id that
+ * several records carry is refused (decision 0021).
+ */
+function resolveDecisionRefs(root, refs) {
+  const names = refs.length > 0 ? decisionFileNames(root) : [];
+  const ids = [];
+  const files = [];
+  for (const raw of refs) {
+    const { id, file } = requireOneDecisionFile(names, raw, {
+      fourDigits: true,
+      unknownHint: '; add it first with "inkan decision add"',
+    });
+    if (!ids.includes(id)) ids.push(id);
+    if (!files.includes(file)) files.push(file);
   }
+  return { ids, files };
 }
 
-/** Resolves `2`, `02`, or `0002` to the file whose name starts with the canonical id. */
-function requireDecisionFile(root, rawId) {
-  if (!/^\d{1,4}$/.test(String(rawId))) throw new InkanError(`malformed decision id "${rawId}" (expected digits, e.g. 2, 02, or 0002)`);
-  const id = String(Number(rawId)).padStart(4, '0');
-  const file = findDecisionFile(root, id);
-  if (!file) throw new InkanError(`unknown decision "${id}"`);
-  return { id, file };
+/**
+ * `{ id, file, records }` for each of `record`'s decision links, where
+ * `records` counts the files in `names` that carry the id. A link resolves
+ * through the file recorded when it was made, even after another record with
+ * the same id has arrived. A link with no recorded file resolves only when
+ * one file carries its id, and is otherwise `file: null` (decision 0021).
+ */
+function decisionLinkFiles(names, record) {
+  const links = [];
+  for (const id of record.decisions) {
+    const carriers = filesForId(names, id);
+    const recorded = record.decisionFiles.filter((f) => f.startsWith(`${id}-`));
+    if (recorded.length > 0) {
+      for (const file of recorded) links.push({ id, file, records: carriers.length });
+    } else {
+      links.push({ id, file: carriers.length === 1 ? carriers[0] : null, records: carriers.length });
+    }
+  }
+  return links;
 }
 
-/** `{ id, status }` for each linked decision id, `status: null` when the file is missing. */
-function resolveDecisionLinks(root, ids) {
-  return ids.map((id) => {
-    const file = findDecisionFile(root, id);
-    if (!file) return { id, status: null };
-    return { id, status: decisions.parse(fs.readFileSync(file, 'utf8'), file).status };
+/** `{ id, file, records, status }` for each of `record`'s decision links;
+ * `status` is null when the file is gone or the link names no single file. */
+function resolveDecisionLinks(root, record) {
+  const names = decisionFileNames(root);
+  return decisionLinkFiles(names, record).map((link) => {
+    if (link.file === null || !names.includes(link.file)) return { ...link, status: null };
+    const content = fs.readFileSync(path.join(store.decisionsDir(root), link.file), 'utf8');
+    return { ...link, status: decisions.parse(content, store.decisionLabel(link.file)).status };
   });
 }
 
@@ -209,7 +283,7 @@ function validateFollows(root, ids, follower = null) {
 export function begin({ root, outcome, accept = [], decision = [], lane, follows = [] }) {
   const resolvedRoot = resolveRoot(root);
   if (!outcome || !outcome.trim()) throw new InkanError('an outcome is required');
-  validateDecisionIds(resolvedRoot, decision);
+  const linked = resolveDecisionRefs(resolvedRoot, decision);
   // A follow-up points at closed outcomes and never writes to them: they stay
   // final, and the link lives only in the new file (decision 0020).
   const followed = validateFollows(resolvedRoot, follows);
@@ -228,13 +302,23 @@ export function begin({ root, outcome, accept = [], decision = [], lane, follows
       ts: new Date().toISOString(),
       outcome,
       criteria: accept,
-      decisions: decision,
+      decisions: linked.ids,
       lane: resolvedLane,
     };
+    if (linked.files.length > 0) event.decisionFiles = linked.files;
     if (followed.length > 0) event.follows = followed;
     try {
       store.createOutcomeFile(resolvedRoot, id, event);
-      return { id, outcome, criteria: accept, decisions: decision, lane: resolvedLane, follows: followed, openAlongside };
+      return {
+        id,
+        outcome,
+        criteria: accept,
+        decisions: linked.ids,
+        decisionFiles: linked.files,
+        lane: resolvedLane,
+        follows: followed,
+        openAlongside,
+      };
     } catch (err) {
       existingIds.push(id);
       if (attempt === 4) throw err;
@@ -246,7 +330,7 @@ export function begin({ root, outcome, accept = [], decision = [], lane, follows
 export function amend({ root, id, reason, addition, accept = [], withdraw = [], decision = [], follows = [] }) {
   const resolvedRoot = resolveRoot(root);
   if (!reason || !reason.trim()) throw new InkanError('amend requires --reason');
-  validateDecisionIds(resolvedRoot, decision);
+  const linked = resolveDecisionRefs(resolvedRoot, decision);
   const record = resolveTarget(resolvedRoot, id);
   const followed = validateFollows(resolvedRoot, follows, record);
 
@@ -268,8 +352,9 @@ export function amend({ root, id, reason, addition, accept = [], withdraw = [], 
     addition: addition ?? null,
     criteria: accept,
     withdraw: withdrawIndexes,
-    decisions: decision,
+    decisions: linked.ids,
   };
+  if (linked.files.length > 0) event.decisionFiles = linked.files;
   if (followed.length > 0) event.follows = followed;
   store.appendEvent(resolvedRoot, record.id, event);
   const updated = loadRecord(resolvedRoot, record.id);
@@ -333,7 +418,7 @@ export function status({ root }) {
     .sort((a, b) => store.compareOutcomeIds(a.id, b.id))
     .map((r) => ({
       ...r,
-      decisionLinks: resolveDecisionLinks(resolvedRoot, r.decisions),
+      decisionLinks: resolveDecisionLinks(resolvedRoot, r),
       followLinks: resolveFollowLinks(resolvedRoot, r.follows),
     }));
   return { open };
@@ -349,10 +434,20 @@ function parseSince(raw) {
   return Date.parse(raw);
 }
 
-/** Normalizes a decision id filter (accepts `2`, `02`, `0002`) without requiring the file to exist. */
-function normalizeDecisionFilter(raw) {
-  if (!/^\d{1,4}$/.test(String(raw))) throw new InkanError(`malformed decision id "${raw}" (expected digits, e.g. 2, 02, or 0002)`);
-  return String(Number(raw)).padStart(4, '0');
+/**
+ * The `log --decision` filter. A bare id (`2`, `02`, or `0002`) keeps every
+ * outcome linked to it, whichever record the link resolves to; a file name
+ * keeps the outcomes whose link resolves to that file. Neither requires the
+ * file to exist, as after a prune (decision 0017).
+ */
+function decisionFilter(root, raw) {
+  const ref = parseDecisionRef(raw);
+  if (ref.stem === undefined) return (r) => r.decisions.includes(ref.id);
+  const names = decisionFileNames(root);
+  const files = matchDecisionRef(names, ref);
+  if (files.length > 1) throw ambiguousDecision(ref, files);
+  const target = files[0] ?? `${ref.stem}.md`;
+  return (r) => decisionLinkFiles(names, r).some((link) => link.file === target);
 }
 
 function matchesGrep(record, re) {
@@ -369,7 +464,7 @@ export function log({ root, n, lane, since, grep, status, decision, id }) {
     return {
       record: {
         ...record,
-        decisionLinks: resolveDecisionLinks(resolvedRoot, record.decisions),
+        decisionLinks: resolveDecisionLinks(resolvedRoot, record),
         followLinks: resolveFollowLinks(resolvedRoot, record.follows),
         thread: followThread(resolvedRoot, record),
       },
@@ -392,13 +487,13 @@ export function log({ root, n, lane, since, grep, status, decision, id }) {
   }
   const sinceMs = since !== undefined ? parseSince(since) : null;
   const grepRe = grep !== undefined ? new RegExp(grep, 'i') : null;
-  const decisionId = decision !== undefined ? normalizeDecisionFilter(decision) : null;
+  const byDecision = decision !== undefined ? decisionFilter(resolvedRoot, decision) : null;
 
   let records = store.listOutcomeIds(resolvedRoot).reverse().map((rid) => loadRecord(resolvedRoot, rid));
   if (lane) records = records.filter((r) => r.lane === lane);
   if (sinceMs !== null) records = records.filter((r) => Date.parse(r.sealedAt) >= sinceMs);
   if (status !== undefined) records = records.filter((r) => (r.closed ? r.status : 'open') === status);
-  if (decisionId) records = records.filter((r) => r.decisions.includes(decisionId));
+  if (byDecision) records = records.filter(byDecision);
   if (grepRe) records = records.filter((r) => matchesGrep(r, grepRe));
   return { records: records.slice(0, limit) };
 }
@@ -425,23 +520,34 @@ export function doctor({ root }) {
   }
 
   const dir = store.decisionsDir(resolvedRoot);
-  const decisionNames = fs.existsSync(dir) ? fs.readdirSync(dir).filter((n) => n.endsWith('.md')) : [];
-  const decisionOwners = new Map();
+  const decisionNames = decisionFileNames(resolvedRoot);
+  const filesById = new Map();
   for (const name of decisionNames) {
     const file = path.join(dir, name);
     try {
       const record = decisions.parse(fs.readFileSync(file, 'utf8'), store.decisionLabel(name));
-      const owner = decisionOwners.get(record.id);
-      if (owner) problems.push(`decision ${record.id}: duplicate id (${owner}, ${name})`);
-      else decisionOwners.set(record.id, name);
+      filesById.set(record.id, [...(filesById.get(record.id) ?? []), name]);
     } catch (err) {
       problems.push(`decision ${name}: ${err.message}`);
     }
   }
+  // Records that share an id are never renamed or renumbered (decisions 0002
+  // and 0021), so the problem stays, and names the way out.
+  for (const [id, names] of filesById) {
+    if (names.length < 2) continue;
+    problems.push(
+      `decision ${id}: duplicate id (${names.join(', ')}); name one record by its file name, ` +
+        `and set decisionStart in ${store.CONFIG_LABEL} to number new records apart`
+    );
+  }
 
   for (const record of records) {
+    for (const file of record.decisionFiles) {
+      if (!decisionNames.includes(file)) problems.push(`outcome ${record.id}: dangling decision link "${file}"`);
+    }
     for (const decisionId of record.decisions) {
-      if (!decisionOwners.has(decisionId)) problems.push(`outcome ${record.id}: dangling decision link "${decisionId}"`);
+      if (record.decisionFiles.some((f) => f.startsWith(`${decisionId}-`))) continue;
+      if (!filesById.has(decisionId)) problems.push(`outcome ${record.id}: dangling decision link "${decisionId}"`);
     }
   }
 
@@ -456,7 +562,7 @@ export function decisionAdd({ root, title, context, decision, driver = [], optio
   if (!context || !context.trim()) throw new InkanError('decision add requires --context');
   if (!decision || !decision.trim()) throw new InkanError('decision add requires --decision');
   const resolvedStatus = requireStatus(status ?? 'accepted');
-  const id = decisions.nextId(resolvedRoot);
+  const id = decisions.nextId(resolvedRoot, store.readConfig(resolvedRoot).decisionStart);
   const dir = store.decisionsDir(resolvedRoot);
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${id}-${decisions.slugify(title)}.md`);
@@ -467,10 +573,22 @@ export function decisionAdd({ root, title, context, decision, driver = [], optio
   return { id, file };
 }
 
+/**
+ * The records `id` names, as `{ file, content }` in `records`. A bare id that
+ * several records carry returns every one of them (decision 0021); `file` and
+ * `content` are set only when there is exactly one.
+ */
 export function decisionShow({ root, id }) {
   const resolvedRoot = resolveRoot(root);
-  const { id: resolvedId, file } = requireDecisionFile(resolvedRoot, id);
-  return { id: resolvedId, file, content: fs.readFileSync(file, 'utf8') };
+  const ref = parseDecisionRef(id);
+  const files = matchDecisionRef(decisionFileNames(resolvedRoot), ref);
+  if (files.length === 0) throw new InkanError(`unknown decision "${ref.stem ?? ref.id}"`);
+  if (ref.stem !== undefined && files.length > 1) throw ambiguousDecision(ref, files);
+  const records = files.map((name) => {
+    const file = path.join(store.decisionsDir(resolvedRoot), name);
+    return { file, content: fs.readFileSync(file, 'utf8') };
+  });
+  return records.length === 1 ? { id: ref.id, ...records[0], records } : { id: ref.id, records };
 }
 
 export function decisionList({ root, status }) {
@@ -488,7 +606,8 @@ export function decisionUpdate({ root, id, status, reason, outcome }) {
   if (status === undefined) throw new InkanError('decision update requires --status');
   const resolvedStatus = requireStatus(status);
   if (!reason || !reason.trim()) throw new InkanError('decision update requires --reason');
-  const { id: resolvedId, file } = requireDecisionFile(resolvedRoot, id);
+  const { id: resolvedId, file: name } = requireOneDecisionFile(decisionFileNames(resolvedRoot), id);
+  const file = path.join(store.decisionsDir(resolvedRoot), name);
   let outcomeId;
   if (outcome !== undefined) {
     const record = loadRecord(resolvedRoot, outcome);

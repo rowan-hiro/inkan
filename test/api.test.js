@@ -6,6 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import * as api from '../src/api.js';
 import * as store from '../src/store.js';
+import * as decisions from '../src/decisions.js';
 import { InkanError } from '../src/api.js';
 
 function tmpDir() {
@@ -749,11 +750,12 @@ test('decision add/show/list/update round-trip, and begin links a decision by st
 
   const begun = api.begin({ root, outcome: 'x', decision: ['0001'] });
   assert.deepEqual(begun.decisions, ['0001']);
-  assert.deepEqual(api.status({ root }).open[0].decisionLinks, [{ id: '0001', status: 'accepted' }]);
+  const link = { id: '0001', file: '0001-pick-a-database.md', records: 1 };
+  assert.deepEqual(api.status({ root }).open[0].decisionLinks, [{ ...link, status: 'accepted' }]);
 
   const updated = api.decisionUpdate({ root, id: '01', status: 'superseded', reason: 'no longer holds' });
   assert.deepEqual(updated, { id: '0001', from: 'accepted', to: 'superseded' });
-  assert.deepEqual(api.status({ root }).open[0].decisionLinks, [{ id: '0001', status: 'superseded' }]);
+  assert.deepEqual(api.status({ root }).open[0].decisionLinks, [{ ...link, status: 'superseded' }]);
   assert.deepEqual(api.decisionList({ root, status: 'superseded' }).records.map((r) => r.id), ['0001']);
 });
 
@@ -778,7 +780,135 @@ test('status prints (missing) for a decision link whose file is gone', () => {
     lane: null,
     head: null,
   });
-  assert.deepEqual(api.status({ root }).open[0].decisionLinks, [{ id: '0009', status: null }]);
+  assert.deepEqual(api.status({ root }).open[0].decisionLinks, [{ id: '0009', file: null, records: 0, status: null }]);
+});
+
+/** Writes a record numbered `id` the way a rebase onto upstream brings one in, beside any record already numbered `id`. */
+function arriveDecision(root, id, title, status = 'accepted') {
+  const name = `${id}-${decisions.slugify(title)}.md`;
+  const content = decisions.render({ id, title, date: '2026-09-28', status, sections: { context: 'ctx', outcome: 'dec' } });
+  fs.writeFileSync(path.join(store.decisionsDir(root), name), content);
+  return name;
+}
+
+test('a decision file name, with or without .md, or a unique prefix of one names a record wherever an id is taken', () => {
+  const root = repo();
+  api.decisionAdd({ root, title: 'Pick a database', context: 'ctx', decision: 'dec' });
+  api.decisionAdd({ root, title: 'Pick a queue', context: 'ctx', decision: 'dec' });
+  for (const ref of ['0002-pick-a-queue', '0002-pick-a-queue.md', '0002-pick-a-q']) {
+    assert.match(api.decisionShow({ root, id: ref }).content, /^# 2\. Pick a queue/);
+  }
+  assert.throws(() => api.decisionShow({ root, id: '0003-pick' }), /unknown decision "0003-pick"/);
+  assert.throws(() => api.decisionShow({ root, id: '2-pick' }), /malformed decision id "2-pick"/);
+
+  const begun = api.begin({ root, outcome: 'x', accept: ['a'], decision: ['0001-pick-a-database', '0001'] });
+  assert.deepEqual(begun.decisions, ['0001']);
+  assert.deepEqual(begun.decisionFiles, ['0001-pick-a-database.md']);
+  api.amend({ root, reason: 'bound by the queue too', decision: ['0002-pick-a-queue.md'] });
+  assert.deepEqual(api.status({ root }).open[0].decisionFiles, ['0001-pick-a-database.md', '0002-pick-a-queue.md']);
+  assert.throws(() => api.amend({ root, reason: 'why', decision: ['0003-pick'] }), /unknown decision "0003-pick"; add it first/);
+
+  const updated = api.decisionUpdate({ root, id: '0002-pick-a-q', status: 'superseded', reason: 'no longer holds' });
+  assert.deepEqual(updated, { id: '0002', from: 'accepted', to: 'superseded' });
+
+  api.end({ root, met: ['1'], note: 'done' });
+  assert.deepEqual(api.log({ root, decision: '0002-pick-a-queue' }).records.map((r) => r.id), [begun.id]);
+  assert.deepEqual(api.log({ root, decision: '0002-pick-a-queue.md' }).records.map((r) => r.id), [begun.id]);
+  assert.deepEqual(api.log({ root, decision: '0002-pick-a-cache' }).records, []);
+});
+
+test('records that share an id: show returns every one, and commands that write refuse the id and name each file', () => {
+  const root = repo();
+  const { file } = api.decisionAdd({ root, title: 'Pick a database', context: 'ctx', decision: 'dec' });
+  arriveDecision(root, '0001', 'Pick a queue');
+
+  const shown = api.decisionShow({ root, id: '1' });
+  assert.equal(shown.id, '0001');
+  assert.deepEqual(shown.records.map((r) => path.basename(r.file)), ['0001-pick-a-database.md', '0001-pick-a-queue.md']);
+  assert.match(shown.records[1].content, /^# 1\. Pick a queue/);
+  assert.equal(shown.content, undefined);
+  assert.match(api.decisionShow({ root, id: '0001-pick-a-queue' }).content, /^# 1\. Pick a queue/);
+  assert.throws(() => api.decisionShow({ root, id: '0001-pick' }), /decision "0001-pick" names 2 records/);
+
+  const named = /decision "0001" names 2 records \(0001-pick-a-database\.md, 0001-pick-a-queue\.md\); name one by its file name/;
+  const recordBefore = fs.readFileSync(file, 'utf8');
+  assert.throws(() => api.decisionUpdate({ root, id: '1', status: 'superseded', reason: 'why' }), named);
+  assert.equal(fs.readFileSync(file, 'utf8'), recordBefore);
+  assert.throws(() => api.begin({ root, outcome: 'x', decision: ['0001'] }), named);
+  assert.deepEqual(store.listOutcomeIds(root), []);
+
+  const begun = api.begin({ root, outcome: 'x', decision: ['0001-pick-a-queue'] });
+  const outcomeBefore = fs.readFileSync(store.outcomeFile(root, begun.id), 'utf8');
+  assert.throws(() => api.amend({ root, reason: 'why', decision: ['0001'] }), named);
+  assert.equal(fs.readFileSync(store.outcomeFile(root, begun.id), 'utf8'), outcomeBefore);
+});
+
+test('a link resolves through the file recorded when it was made, outside the contract hash, after a record with its id arrives', () => {
+  const root = repo();
+  api.decisionAdd({ root, title: 'Pick a database', context: 'ctx', decision: 'dec' });
+  const begun = api.begin({ root, outcome: 'x', accept: ['a'], decision: ['0001'] });
+  const [event] = store.readOutcomeEvents(root, begun.id);
+  assert.deepEqual(event.decisionFiles, ['0001-pick-a-database.md']);
+
+  // The same outcome as sealed before decision files were recorded.
+  const legacyId = '2026-01-01-0000-lgcy';
+  const { decisionFiles, ...legacyEvent } = event;
+  store.createOutcomeFile(root, legacyId, { ...legacyEvent, id: legacyId });
+  const hashes = () => api.status({ root }).open.map((r) => r.contractHash);
+  const [before] = new Set(hashes());
+  assert.deepEqual(hashes(), [before, before]);
+
+  arriveDecision(root, '0001', 'Pick a queue', 'rejected');
+  const links = Object.fromEntries(api.status({ root }).open.map((r) => [r.id, r.decisionLinks]));
+  assert.deepEqual(links[begun.id], [{ id: '0001', file: '0001-pick-a-database.md', records: 2, status: 'accepted' }]);
+  // A link with no recorded file names neither record, rather than whichever sorts first.
+  assert.deepEqual(links[legacyId], [{ id: '0001', file: null, records: 2, status: null }]);
+  assert.deepEqual(api.log({ root, id: begun.id }).record.decisionLinks, links[begun.id]);
+  assert.deepEqual(api.log({ root, id: legacyId }).record.decisionLinks, links[legacyId]);
+  assert.deepEqual(hashes(), [before, before]);
+
+  const ids = (decision) => api.log({ root, decision }).records.map((r) => r.id).sort();
+  assert.deepEqual(ids('1'), [begun.id, legacyId].sort());
+  assert.deepEqual(ids('0001-pick-a-database'), [begun.id]);
+  assert.deepEqual(ids('0001-pick-a-queue'), []);
+  assert.throws(() => api.log({ root, decision: '0001-pick' }), /decision "0001-pick" names 2 records/);
+
+  // A recorded file that is gone prints as missing, not as the other record with its id (decision 0017).
+  fs.rmSync(path.join(store.decisionsDir(root), '0001-pick-a-database.md'));
+  assert.deepEqual(api.log({ root, id: begun.id }).record.decisionLinks, [
+    { id: '0001', file: '0001-pick-a-database.md', records: 1, status: null },
+  ]);
+});
+
+test('decision add numbers from decisionStart in .inkan/config.json and refuses a malformed config', () => {
+  const root = repo();
+  const add = (title) => api.decisionAdd({ root, title, context: 'ctx', decision: 'dec' });
+  const config = path.join(root, '.inkan', 'config.json');
+  assert.equal(add('Upstream first').id, '0001');
+  fs.writeFileSync(config, JSON.stringify({ decisionStart: 1001 }));
+  assert.equal(add('Ours first').id, '1001');
+  assert.equal(add('Ours second').id, '1002');
+  // Upstream keeps counting from its own highest id, below the start.
+  arriveDecision(root, '0002', 'Upstream second');
+  assert.equal(add('Ours third').id, '1003');
+  fs.writeFileSync(config, JSON.stringify({ decisionStart: 2 }));
+  assert.equal(add('Ours fourth').id, '1004');
+
+  const count = () => fs.readdirSync(store.decisionsDir(root)).length;
+  const before = count();
+  for (const [content, message] of [
+    ['{', /: \.inkan\/config\.json: not valid JSON$/],
+    ['[1001]', /: \.inkan\/config\.json: expected a JSON object$/],
+    ['{"decisionstart": 1001}', /: \.inkan\/config\.json: unknown setting "decisionstart"$/],
+    ['{"decisionStart": 0}', /: \.inkan\/config\.json: decisionStart must be an integer from 1 to 9999$/],
+    ['{"decisionStart": 10000}', /decisionStart must be an integer from 1 to 9999/],
+    ['{"decisionStart": 1.5}', /decisionStart must be an integer from 1 to 9999/],
+    ['{"decisionStart": "1001"}', /decisionStart must be an integer from 1 to 9999/],
+  ]) {
+    fs.writeFileSync(config, content);
+    assert.throws(() => add('Refused'), message);
+  }
+  assert.equal(count(), before);
 });
 
 test('a legacy YYYY-MM-DD-xxxx outcome id still resolves', () => {

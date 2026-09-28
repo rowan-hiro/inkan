@@ -111,10 +111,10 @@ export function list(root) {
     .sort((a, b) => (a.id < b.id ? -1 : 1));
 }
 
-/** One more than the highest decision id present, as a zero-padded string. */
-export function nextId(root) {
+/** One more than the highest decision id present, and at least `start`, as a zero-padded string. */
+export function nextId(root, start = 1) {
   const max = list(root).reduce((acc, r) => Math.max(acc, Number(r.id)), 0);
-  return String(max + 1).padStart(4, '0');
+  return String(Math.max(start, max + 1)).padStart(4, '0');
 }
 
 /** Lowercase, non-alphanumeric runs collapsed to one hyphen, trimmed, capped at 80 chars. */

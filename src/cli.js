@@ -26,7 +26,8 @@ Commands:
         [--lane <tag>]
       Seal a new outcome; prints its id. Repeat --accept once per
       observable criterion; they are numbered from 1 in that order.
-      Repeat --decision once per decision record the work is bound by.
+      Repeat --decision once per decision record the work is bound by;
+      it takes an id, or a file name such as 0002-pick-a-database.
       Repeat --follows once per closed outcome this work follows up, such
       as review changes to closed work; the followed outcome is unchanged.
       Use --lane only where the repository already files outcomes by lane.
@@ -55,8 +56,11 @@ Commands:
   decision add "<title>" --context <text> --decision <text> [--driver <text>]...
                [--option <text>]... [--consequence <text>]... [-s <status>]
       Write a numbered MADR record; prints its repository-relative path.
+      Numbers from decisionStart in .inkan/config.json when that is higher.
   decision show <id>
-      Print one decision record verbatim. <id> accepts 2, 02, or 0002.
+      Print a decision record verbatim. <id> accepts 2, 02, 0002, or a file
+      name such as 0002-pick-a-database, with or without .md, or a unique
+      prefix of one. When records share an id, prints each after its path.
   decision list [-s <status>]
       One line per record, ascending by id.
   decision update <id> --status <status> --reason <text> [--outcome <id>]
@@ -68,6 +72,9 @@ Commands:
 
   help, --help, -h     show this help
   --version, -v        print the version
+
+Wherever a decision id is taken, a file name also names one record among
+several that share the id. Commands that write refuse a shared id.
 
 'ink' is an alias for 'inkan'; both accept identical arguments.`;
 
@@ -112,6 +119,15 @@ function printCriterionLine(c, dispositionByIndex) {
   console.log(line);
 }
 
+/** A decision link by its id, or by its file name when another record carries
+ * the same id; a link that names no single record says how many carry it. */
+function decisionLinkText(d) {
+  if (d.file === null && d.records > 1) return `${d.id} (ambiguous: ${d.records} records)`;
+  const others = d.records - (d.status === null ? 0 : 1);
+  const name = d.file !== null && others > 0 ? d.file.slice(0, -'.md'.length) : d.id;
+  return `${name} (${d.status ?? 'missing'})`;
+}
+
 /** Shared body for `status` and `log <id>`: the open-outcome shape, plus the
  * closed-only fields when the record has an end event. */
 function printRecord(record) {
@@ -128,8 +144,7 @@ function printRecord(record) {
     if (a.addition) console.log(`    ${a.addition}`);
   }
   if (record.decisionLinks.length > 0) {
-    const links = record.decisionLinks.map((d) => `${d.id} (${d.status ?? 'missing'})`);
-    console.log(`  decisions: ${links.join(', ')}`);
+    console.log(`  decisions: ${record.decisionLinks.map(decisionLinkText).join(', ')}`);
   }
   if (record.followLinks.length > 0) {
     const links = record.followLinks.map((f) => `${f.id} (${f.status ?? 'missing'})`);
@@ -208,7 +223,15 @@ function runDecision(root, rest) {
     case 'show': {
       const { positionals } = parseArgs({ args: subRest, allowPositionals: true });
       if (positionals.length !== 1) throw new InkanError('usage: inkan decision show <id>');
-      process.stdout.write(api.decisionShow({ root, id: positionals[0] }).content);
+      const { records } = api.decisionShow({ root, id: positionals[0] });
+      if (records.length === 1) {
+        process.stdout.write(records[0].content);
+        break;
+      }
+      // Records that share an id each follow a header naming their file.
+      records.forEach((r, i) => {
+        process.stdout.write(`${i > 0 ? '\n' : ''}==> ${printedPath(r.file, root)} <==\n${r.content}`);
+      });
       break;
     }
     case 'list': {

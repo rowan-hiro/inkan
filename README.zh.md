@@ -181,6 +181,16 @@ protocol block 带有版本号。`init` 会原地升级由旧版 protocol 生成
 
 outcome 可以在 `begin` 或 `amend` 时通过 `--decision <id>` 指明自己受哪些 decision 约束。这些 decision 是工作的约束条件，但绝不是关闭工作的 gate。
 
+新记录的编号是现有最大编号加一。如果一个仓库带着另一个仓库的历史，并通过 rebase 接收对方新增的记录，就可能出现两条记录共用一个编号的情况，而 Inkan 不会给其中任何一条改名或重新编号。凡是接受 id 的地方，都可以改用 decision 文件名（带不带 `.md` 都行），或者它的唯一前缀，比如 `0013-open`，来指定其中一条记录。`decision show` 遇到共用的 id 会把所有记录都打印出来；`begin`、`amend` 和 `decision update` 拒绝共用的 id，并列出每个文件；`doctor` 会一直报告它。`begin` 和 `amend` 还会记下每个 link 当时对应的文件，所以即使后来又来了一条同编号的记录，link 仍然指向原来那条。早期版本记下的 link 没有文件，这种情况会显示为 ambiguous，而不是随便取排在最前面的那条。
+
+派生仓库如果想让自己的记录和上游错开，可以提交一个 `.inkan/config.json`：
+
+```json
+{ "decisionStart": 1001 }
+```
+
+这样 `decision add` 会从 1001 开始编号；如果现有最大编号加一更大，就用那个数。上游则继续在它下面的号段里编。
+
 Inkan 自己的设计也用同样的方式记录，从 `0001` 中划定的边界一路延续至今。仓库没有单独的设计文档；`inkan decision list` 就是它的索引。
 
 ## 工作共用一份记录
@@ -210,15 +220,15 @@ Inkan 本身也这样开发：工作先作为 outcome 被 seal，结束时记录
 | 命令 | 作用 | 何时拒绝执行 |
 |---|---|---|
 | `inkan init [--lang <tag>] [--claude] [--local \| --repo]` | 写入或升级 `AGENTS.md` 中由 Inkan 管理的 block；创建 `.inkan/`。`--local` 把 `.inkan/` 留在本机 checkout；`--repo` 是新仓库的默认。`--claude` 还会把 `CLAUDE.md` 软链到 `AGENTS.md`。 | block 曾被手工编辑；同时给出 `--local` 与 `--repo`；已存在一个不是该 symlink 的 `CLAUDE.md`。 |
-| `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--follows <id>]... [--lane <tag>]` | Seal 一个新 outcome，并打印其 id。`--follows` 写明这项工作跟进的已关闭 outcome，不会向它写入任何内容。其他 open outcome 会在 stderr 的 notice 中被点名，但不会受到任何改动。 | decision 不存在；`--follows` 的 id 格式错误、不存在或仍然 open。 |
-| `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [--follows <id>]... [<id>]` | 追加 amendment，并打印新的 contract hash。`--follows` 补上这项工作跟进的已关闭 outcome，不会向它写入任何内容。 | 没有 reason；没有 open outcome；存在多个 open outcome，却没有用 `<id>` 明确指定目标；`--follows` 的 id 格式错误、不存在、仍然 open，或者 seal 得比被 amend 的 outcome 晚。 |
+| `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--follows <id>]... [--lane <tag>]` | Seal 一个新 outcome，并打印其 id。`--decision` 接受 id 或 decision 文件名，并记下它对应的文件。`--follows` 写明这项工作跟进的已关闭 outcome，不会向它写入任何内容。其他 open outcome 会在 stderr 的 notice 中被点名，但不会受到任何改动。 | decision 不存在，或 id 被多条记录共用；`--follows` 的 id 格式错误、不存在或仍然 open。 |
+| `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [--follows <id>]... [<id>]` | 追加 amendment，并打印新的 contract hash。`--decision` 与 `begin` 相同。`--follows` 补上这项工作跟进的已关闭 outcome，不会向它写入任何内容。 | 没有 reason；没有 open outcome；存在多个 open outcome，却没有用 `<id>` 明确指定目标；decision 不存在，或 id 被多条记录共用；`--follows` 的 id 格式错误、不存在、仍然 open，或者 seal 得比被 amend 的 outcome 晚。 |
 | `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | 记录 disposition 并关闭 outcome。状态由结果推导：全部 met 为 `completed`，任一 unmet 为 `partial`。打印 outcome id、状态和供 commit 使用的关联 trailer。 | 仍生效的标准缺少 disposition（以 `-s abandoned` 关闭时除外）；没有 note。 |
 | `inkan status` | 逐字打印所有 open outcome：seal 时间、hash、lane、带编号的标准、附 reason 的 amendment，以及关联的 decision。 | 永不拒绝。 |
-| `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | 每个 outcome 打印一行，最新的在前，默认 20 条；跟进的 outcome 会在行尾写明它跟进的对象。`<id>` 会完整打印一项 outcome，包括 disposition、note，以及它跟进和跟进它的整条链。filter 可以组合。 | 永不拒绝。 |
-| `inkan doctor` | 可选的只读文件诊断。Fold 所有 outcome 并解析所有 decision；报告损坏文件、id 不匹配、重复的 decision id，以及失效的 decision link。退出码：正常为 0，发现问题为 1。 | 永不拒绝。 |
-| `inkan decision add "<title>" --context <text> --decision <text> [--driver <text>]... [--option <text>]... [--consequence <text>]... [-s <status>]` | 写入一个带编号的 MADR 文件，并打印仓库相对路径。 | 缺少必要 section。 |
-| `inkan decision update <id> --status <status> --reason <text>` | 追加一条带日期的历史记录，并设置新状态。有 open outcome 时会指出它的名称。永不编辑 Context 或 Decision Outcome。 | id 或 status 未知。 |
-| `inkan decision list [-s <status>]` / `inkan decision show <id>` | 只读。`show` 接受 `2`、`02` 或 `0002`。 | 永不拒绝。 |
+| `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | 每个 outcome 打印一行，最新的在前，默认 20 条；跟进的 outcome 会在行尾写明它跟进的对象。`<id>` 会完整打印一项 outcome，包括 disposition、note，以及它跟进和跟进它的整条链。`--decision` 给 id 时匹配指向它的所有 link；给文件名时只匹配对应到那个文件的 link。filter 可以组合。 | 永不拒绝。 |
+| `inkan doctor` | 可选的只读文件诊断。Fold 所有 outcome 并解析所有 decision；报告损坏文件、id 不匹配、重复的 decision id，以及失效的 decision link。重复的 id 只报告一次，列出共用它的每个文件，并且一直算作问题。退出码：正常为 0，发现问题为 1。 | 永不拒绝。 |
+| `inkan decision add "<title>" --context <text> --decision <text> [--driver <text>]... [--option <text>]... [--consequence <text>]... [-s <status>]` | 写入一个带编号的 MADR 文件，并打印仓库相对路径。`.inkan/config.json` 中的 `decisionStart` 更大时，从它开始编号。 | 缺少必要 section；`.inkan/config.json` 格式错误。 |
+| `inkan decision update <id> --status <status> --reason <text>` | 追加一条带日期的历史记录，并设置新状态。有 open outcome 时会指出它的名称。永不编辑 Context 或 Decision Outcome。 | id 或 status 未知；id 被多条记录共用。 |
+| `inkan decision list [-s <status>]` / `inkan decision show <id>` | 只读。`show` 接受 `2`、`02`、`0002` 或 decision 文件名；id 被多条记录共用时，逐条打印，每条前面写明路径。 | 永不拒绝。 |
 
 Decision status 包括 `proposed`、`accepted`、`rejected`、`deferred`、`deprecated` 和 `superseded`。
 
@@ -228,11 +238,12 @@ Decision status 包括 `proposed`、`accepted`、`rejected`、`deferred`、`depr
 .inkan/
   outcomes/<id>.jsonl      每个 outcome 一个 append-only 文件
   decisions/NNNN-slug.md   MADR 记录
+  config.json              可选；decisionStart
 ```
 
 `2026-09-03-1432-k7m2` 这样的 outcome id，由 outcome 开始时的 UTC 日期与分钟，加上四个随机字符组成。因此 id 可以按时间排序，两个 branch 也几乎不可能发生冲突。每个 outcome 文件包含一个 `begin` event、任意数量的 `amend` event，以及最多一个 `end` event。所谓 open outcome，就是一个尚无 `end` 的文件。跟进的 outcome 在自己的 `begin` 或 `amend` event 里列出它跟进的已关闭 outcome，不向它们的文件写入任何内容。跟进总是 seal 在被跟进的 outcome 之后，而 id 记录的是 seal 时的 UTC 时间，与本地时区无关，所以要找出跟进某个 outcome 的记录，只需读取它的 UTC 日期当天及之后开始的文件。
 
-contract hash 是一个 SHA-256，计算范围包括 outcome 文本、带 withdrawn 标记的验收标准、关联的 decision，以及每次 amendment 的 reason 和 addition。lane 标签和跟进关系不在其中，所以引入跟进关系之后，此前的 hash 都保持不变。`end` 把这个 hash 与 disposition 和 note 一起保存。读取时仍会检查 event 格式并拒绝损坏的记录，但不会读取项目文件或与 commit 比较。旧 v1 记录中的 Git 信息可以继续读取，不会被改写。
+contract hash 是一个 SHA-256，计算范围包括 outcome 文本、带 withdrawn 标记的验收标准、关联的 decision，以及每次 amendment 的 reason 和 addition。lane 标签、跟进关系，以及 decision link 对应的文件都不在其中，所以引入它们之后，此前的 hash 都保持不变。`end` 把这个 hash 与 disposition 和 note 一起保存。读取时仍会检查 event 格式并拒绝损坏的记录，但不会读取项目文件或与 commit 比较。旧 v1 记录中的 Git 信息可以继续读取，不会被改写。
 
 由于每个 outcome 都有独立文件，两个 branch 永远不会改动同一个 outcome 文件，普通 merge 就能把记录自然汇合。这种设计不需要 cache，也能让 review 保持轻快：不带 filter 的 `log` 只读取实际要打印的文件数；内置 benchmark（`npm run bench`）会生成一万个已关闭的 outcome，并将 `log -n 3` 控制在 50 ms 以内、`log --grep` 控制在 1 秒以内、`doctor` 控制在 2 秒以内。
 

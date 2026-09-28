@@ -24,10 +24,11 @@ export function canonicalJSON(value) {
 
 /**
  * sha256 over canonical JSON of { outcome, criteria with withdrawn flags,
- * decisions, amendments as [reason, addition] }. The lane tag and the follow
- * links are excluded on purpose: a filing label and a pointer to earlier work
- * are not part of what was promised, and leaving the links out keeps every
- * existing hash, and readers that predate them, valid (decision 0020).
+ * decisions, amendments as [reason, addition] }. The lane tag, the follow
+ * links, and the decision files are excluded on purpose: a filing label, a
+ * pointer to earlier work, and the file a decision id resolved to are not
+ * part of what was promised, and leaving them out keeps every existing hash,
+ * and readers that predate them, valid (decisions 0020 and 0021).
  */
 export function computeContractHash({ outcome, criteria, decisions, amendments }) {
   const payload = {
@@ -47,6 +48,19 @@ function addFollows(record, event, where) {
   }
   for (const f of follows) {
     if (!record.follows.includes(f)) record.follows.push(f);
+  }
+}
+
+const DECISION_FILE_RE = /^\d{4}-[^/\\]*\.md$/;
+
+/** Adds a begin or amend event's decision file names to `record`, refusing anything else. */
+function addDecisionFiles(record, event, where) {
+  const files = event.decisionFiles ?? [];
+  if (!Array.isArray(files) || files.some((f) => typeof f !== 'string' || !DECISION_FILE_RE.test(f))) {
+    throw corrupt(where, `${event.type} decisionFiles must be a list of decision file names`);
+  }
+  for (const f of files) {
+    if (!record.decisionFiles.includes(f)) record.decisionFiles.push(f);
   }
 }
 
@@ -71,6 +85,7 @@ export function fold(events, file) {
     outcome: null,
     lane: null,
     decisions: [],
+    decisionFiles: [],
     follows: [],
     criteria: [],
     amendments: [],
@@ -104,6 +119,7 @@ export function fold(events, file) {
       for (const d of event.decisions ?? []) {
         if (!record.decisions.includes(d)) record.decisions.push(d);
       }
+      addDecisionFiles(record, event, where);
       addFollows(record, event, where);
       return;
     }
@@ -127,6 +143,7 @@ export function fold(events, file) {
       for (const d of event.decisions ?? []) {
         if (!record.decisions.includes(d)) record.decisions.push(d);
       }
+      addDecisionFiles(record, event, where);
       addFollows(record, event, where);
       record.amendments.push({
         ts: event.ts,

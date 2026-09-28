@@ -231,3 +231,27 @@ test('amend follows adds to the begin links and stays out of the contract hash',
   assert.equal(record.contractHash, fold([begin(), amend()], FILE).contractHash);
   assert.throws(() => fold([begin(), amend({ follows: ['nope'] })], FILE), /amend follows must be a list of outcome ids/);
 });
+
+test('decision files fold into the record, from begin and amend, and stay out of the contract hash', () => {
+  const plain = [begin({ decisions: ['0001'] }), amend({ decisions: ['0002'] })];
+  const linked = [
+    begin({ decisions: ['0001'], decisionFiles: ['0001-pick-a-database.md'] }),
+    amend({ decisions: ['0002'], decisionFiles: ['0002-pick-a-queue.md', '0001-pick-a-database.md'] }),
+  ];
+  const record = fold(linked, FILE);
+  assert.deepEqual(record.decisionFiles, ['0001-pick-a-database.md', '0002-pick-a-queue.md']);
+  assert.deepEqual(fold(plain, FILE).decisionFiles, []);
+  assert.equal(record.contractHash, fold(plain, FILE).contractHash);
+  // An end written with the hash of the record without files closes the linked record cleanly.
+  assert.equal(fold([...linked, endWith(plain)], FILE).status, 'completed');
+});
+
+test('decision files that are not a list of decision file names are corrupt', () => {
+  for (const decisionFiles of ['0001-pick.md', ['0001'], ['1-pick.md'], ['0001-pick'], ['../0001-pick.md'], [7]]) {
+    assert.throws(() => fold([begin({ decisionFiles })], FILE), /begin decisionFiles must be a list of decision file names/);
+  }
+  assert.throws(
+    () => fold([begin(), amend({ decisionFiles: ['nope'] })], FILE),
+    /amend decisionFiles must be a list of decision file names/
+  );
+});

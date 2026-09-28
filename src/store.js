@@ -45,6 +45,42 @@ export function decisionLabel(name) {
   return `${DIR_NAME}/decisions/${name}`;
 }
 
+export const CONFIG_LABEL = `${DIR_NAME}/config.json`;
+
+/**
+ * The repository settings in `.inkan/config.json`, or `{}` when the file is
+ * absent. The only setting is `decisionStart`, the lowest number `decision
+ * add` gives a new record, so a derived repository can number its records
+ * apart from upstream's. Throws naming the file on malformed JSON, an
+ * unknown setting, or a `decisionStart` that is not an integer from 1 to 9999.
+ */
+export function readConfig(root) {
+  let raw;
+  try {
+    raw = fs.readFileSync(path.join(root, DIR_NAME, 'config.json'), 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return {};
+    throw err;
+  }
+  let config;
+  try {
+    config = JSON.parse(raw);
+  } catch {
+    throw new Error(`${CONFIG_LABEL}: not valid JSON`);
+  }
+  if (config === null || typeof config !== 'object' || Array.isArray(config)) {
+    throw new Error(`${CONFIG_LABEL}: expected a JSON object`);
+  }
+  for (const key of Object.keys(config)) {
+    if (key !== 'decisionStart') throw new Error(`${CONFIG_LABEL}: unknown setting "${key}"`);
+  }
+  const start = config.decisionStart;
+  if (start !== undefined && !(Number.isInteger(start) && start >= 1 && start <= 9999)) {
+    throw new Error(`${CONFIG_LABEL}: decisionStart must be an integer from 1 to 9999`);
+  }
+  return config;
+}
+
 /**
  * `absPath` relative to `from`, POSIX separators, `.` when they are the same
  * path. If the relative form is still absolute (a different drive on
