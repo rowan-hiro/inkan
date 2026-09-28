@@ -44,6 +44,7 @@ judging the result to the people involved and the repository's own tests.
 | What was the work meant to deliver? | `begin` seals the outcome text and its acceptance criteria in an append-only file. `status` prints open outcomes verbatim. |
 | How did the intent change? | The headline stays. `amend --reason` appends the reason, additions, and any added or withdrawn criteria. |
 | What was declared at close? | `end` records a disposition for every live criterion and a note. An outcome without an end event stays open. |
+| What did review of closed work change? | `begin --follows <id>` seals a new outcome that names the closed one it follows up. The closed record is never touched; `log <id>` prints the whole thread. |
 
 These are declarations. Inkan does not compare them with commits or decide
 whether the work fulfilled the criteria. Closing creates no later audit
@@ -135,6 +136,34 @@ the declarations. Amend before carrying out work that changes the sealed scope.
 
 ![Inkan workflow: begin seals the outcome, criteria, and decisions; people and agents do the work and run repository checks; amend with a reason before doing changed-scope work; end declares each criterion met or unmet with a note; commit the work, record, and Inkan-Outcome trailer. Resume an open outcome with status and log.](docs/images/workflow.webp)
 
+## When review asks for changes
+
+A closed outcome stays closed, even when review of the work it delivered
+asks for changes. The changes are a new outcome that names the closed one
+it follows up:
+
+```sh
+inkan begin "Address review of account recovery" \
+  --follows 2026-09-03-0621-82qz \
+  --accept "an expired link names when it expired"
+```
+
+The earlier file is not touched: its declarations are what was known when
+it closed, and the follow-up records what review found. `log` marks the
+follow-up, and `log <id>` on any outcome in the chain prints the thread in
+the order the outcomes were sealed, marking the one asked for:
+
+```
+  thread:
+  * 2026-09-03-0621-82qz  completed  Ship account recovery
+    2026-09-05-1010-x9ab  completed  Address review of account recovery
+    2026-09-06-0215-m3tq  open  Address second review of account recovery
+```
+
+A long review leaves one thread to read, not scattered outcomes to
+reconcile. Repeat `--follows` when one change follows up several closed
+outcomes.
+
 ## Commit references when reading history
 
 `Inkan-Outcome: <id>` associates a commit with an outcome. It supplies
@@ -206,8 +235,10 @@ These are the product, not its limitations.
   audit. `doctor` is an optional file diagnostic, never a workflow step.
 - **Closed is final.** There is no stale state, no invalidation, and no
   notion that a closed outcome needs to be redone. Reviewing the log is
-  reading, not re-checking. If a past declaration now looks wrong, that is a
-  new outcome with its own seal.
+  reading, not re-checking. If a past declaration now looks wrong, or review
+  asks for changes, that is a new outcome with its own seal. It names the
+  closed outcome with `begin --follows`, so the two read as one thread
+  without the earlier record being rewritten.
 - **It never closes an outcome on anyone's behalf.** Several outcomes can be
   open at once, one per session or branch. `begin` names the others and
   leaves them alone. An outcome that was never closed is an honest record of
@@ -229,7 +260,8 @@ coding agents already read. Five rules: seal before durable changes; the
 seal is a fact; close with dispositions, then commit the record with the
 work and include the outcome trailer; re-anchor with `inkan status` after
 context loss and leave other sessions' outcomes alone; closed outcomes are
-final and commit references are informational when reading history.
+final, review changes to closed work are a new outcome that names the one
+it follows, and commit references are informational when reading history.
 `init --local` writes the same five rules with a local-only publication
 duty: keep `.inkan/` on this checkout, do not commit it, and do not include
 an `Inkan-Outcome` trailer. `init --repo` writes the default that commits
@@ -294,6 +326,7 @@ Each stage adds to the record without rewriting an earlier declaration.
 | Change | How the intent moved, and why | `amend --reason` |
 | Constraint | The decisions the work is bound by | `decision add`, `--decision` |
 | Close | A disposition per criterion and the status derived from those declarations | `end` |
+| Follow-up | Review changes to closed work, linked to the outcome they follow | `begin --follows` |
 | Commit reference | The outcome associated with a landing commit, for context | `Inkan-Outcome` trailer |
 | Resume | Where a fresh session picks up | `status`, `log` |
 
@@ -314,11 +347,11 @@ is not part of the generated agent protocol.
 | Command | Effect | Refuses when |
 |---|---|---|
 | `inkan init [--lang <tag>] [--claude] [--local \| --repo]` | Writes or upgrades the managed block in `AGENTS.md`; creates `.inkan/`. `--local` keeps `.inkan/` on this checkout; `--repo` is the default for a new repository. `--claude` also links `CLAUDE.md` to `AGENTS.md`. | The block was hand-edited. `--local` together with `--repo`. A `CLAUDE.md` exists that is not that symlink. |
-| `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]` | Seals a new outcome; prints its id. Any other open outcome is named in a notice on stderr and left untouched. | Never. |
+| `inkan begin "<outcome>" [--accept <text>]... [--decision <id>]... [--follows <id>]... [--lane <tag>]` | Seals a new outcome; prints its id. `--follows` names a closed outcome this work follows up and writes nothing to it. Any other open outcome is named in a notice on stderr and left untouched. | An unknown decision. A `--follows` id that is malformed, unknown, or still open. |
 | `inkan amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]... [--decision <id>]... [<id>]` | Appends an amendment; prints the new contract hash. | No reason. No open outcome. Ambiguous open outcome without `<id>`. |
 | `inkan end [<id>] [--met <n>]... [--unmet <n>]... [-s abandoned] --note <text>` | Records dispositions and closes. Status is derived: all met is `completed`, any unmet is `partial`. Prints the outcome id, status, and commit reference trailer. | A live criterion has no disposition, unless closing with `-s abandoned`. No note. |
 | `inkan status` | Prints every open outcome verbatim: sealed time, hash, lane, criteria with indexes, amendments with reasons, linked decisions. | Never. |
-| `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | One line per outcome, newest first, default 20. `<id>` prints one outcome in full, including dispositions and note. Filters combine. | Never. |
+| `inkan log [-n N] [--since <date>] [--grep <regex>] [--status <s>] [--decision <id>] [--lane <tag>] [<id>]` | One line per outcome, newest first, default 20; a follow-up's line names what it follows. `<id>` prints one outcome in full, including dispositions and note, and the thread of outcomes it follows and that follow it. Filters combine. | Never. |
 | `inkan doctor` | Optional, read-only diagnostic. Folds every outcome and parses every decision; reports corrupt files, id mismatches, duplicate decision ids, and dangling decision links. Exit 0 clean, 1 problems. | Never. |
 | `inkan decision add "<title>" --context <text> --decision <text> [--driver <text>]... [--option <text>]... [--consequence <text>]... [-s <status>]` | Writes a numbered MADR file; prints its repository-relative path. | Missing required sections. |
 | `inkan decision update <id> --status <status> --reason <text>` | Appends a dated history entry and sets the new status. Names the open outcome when there is one. Never edits Context or Decision Outcome. | Unknown id or status. |
@@ -339,11 +372,15 @@ An outcome id such as `2026-09-03-1432-k7m2` is the UTC date and minute the
 outcome was begun plus four random characters, so ids sort chronologically
 and two branches essentially never collide. Each outcome file holds a
 `begin` event, any `amend` events, and at most one `end` event. An open
-outcome is simply a file with no `end` yet.
+outcome is simply a file with no `end` yet. A follow-up's `begin` event
+lists the closed outcomes it follows; nothing is written to theirs, and the
+outcomes that follow one are found by reading the files begun on its day or
+later.
 
 The contract hash is a SHA-256 over the outcome text, its criteria with
 their withdrawn flags, the linked decisions, and every amendment's reason
-and addition. `end` stores that contract hash with the dispositions and
+and addition. The lane tag and follow links are not part of it, so adding
+them left every earlier hash as it was. `end` stores that contract hash with the dispositions and
 note. Readers enforce the event format and reject corrupt records; they
 do not inspect project files or compare the record with a commit. Existing
 v1 records that contain Git metadata remain readable without being rewritten.

@@ -63,6 +63,9 @@ export function isInside(root, absPath) {
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
 }
 
+/** Matches the current YYYY-MM-DD-HHMM-xxxx id form and the legacy YYYY-MM-DD-xxxx form. */
+export const OUTCOME_ID_RE = /^\d{4}-\d{2}-\d{2}-(?:\d{4}-)?[0-9a-z]{4}$/;
+
 // Crockford base32, lowercase, with the vowels (a, e) also removed on top of
 // Crockford's own exclusions (i, l, o, u) so an id never spells a word.
 const ID_ALPHABET = '0123456789bcdfghjkmnpqrstvwxyz';
@@ -72,7 +75,7 @@ const ID_ALPHABET = '0123456789bcdfghjkmnpqrstvwxyz';
  * random base32 characters), sorting chronologically to the minute with
  * random tie-breaking. `existingIds` dodges same-minute collisions; a true
  * cross-clone collision is left for `doctor` (M3) to report. Readers also
- * accept the earlier `YYYY-MM-DD-xxxx` form (see OUTCOME_ID_RE in cli.js).
+ * accept the earlier `YYYY-MM-DD-xxxx` form (see OUTCOME_ID_RE).
  */
 export function newOutcomeId(existingIds = []) {
   const existing = new Set(existingIds);

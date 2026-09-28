@@ -42,7 +42,7 @@ test('init creates storage dirs and writes AGENTS.md', () => {
   const agents = fs.readFileSync(path.join(root, 'AGENTS.md'), 'utf8');
   assert.match(agents, /^# Agent instructions/);
   assert.match(agents, /<!-- inkan -->/);
-  assert.match(agents, /<!-- inkan-protocol: 13 -->/);
+  assert.match(agents, /<!-- inkan-protocol: 14 -->/);
   assert.match(agents, /<!-- inkan-mode: repo -->/);
   assert.match(agents, /<!-- inkan-lang: en -->/);
   assert.match(agents, /Commit the outcome record with the work/);
@@ -91,7 +91,7 @@ test('init --lang upgrades only the language parts of an unmodified block', () =
 });
 
 test('init upgrades a block generated under an earlier protocol and still refuses hand edits', () => {
-  for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
+  for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) {
     const root = tmpDir();
     const agentsFile = path.join(root, 'AGENTS.md');
     const marker = new RegExp(`<!-- inkan-protocol: ${version} -->`);
@@ -100,8 +100,12 @@ test('init upgrades a block generated under an earlier protocol and still refuse
     const result = api.init({ root });
     assert.equal(result.changed, true);
     const agents = fs.readFileSync(agentsFile, 'utf8');
-    assert.match(agents, /<!-- inkan-protocol: 13 -->/);
+    assert.match(agents, /<!-- inkan-protocol: 14 -->/);
     assert.match(agents, /<!-- inkan-mode: repo -->/);
+    // Protocol 14: review changes to closed work are a new outcome that names
+    // what it follows, and closed outcomes stay final (decision 0020).
+    assert.match(agents, /If a past declaration now looks wrong, or review of closed work asks for changes, that is a new outcome with its own seal, and `inkan begin` names each closed outcome it follows/);
+    assert.match(agents, /Never re-verify, re-attest, or re-close a closed outcome/);
     // Protocol 13: new work states its scope, with every part the request does
     // not say named as an assumption, before status or history (decision 0019).
     assert.match(agents, /For new work, first state the outcome and its scope from the request and the repository's current structure, such as its README and top-level modules, before running `inkan status` or reading the outcome log or the decision records/);
@@ -125,7 +129,7 @@ test('init upgrades a block generated under an earlier protocol and still refuse
     assert.match(agents, /Commit `\.inkan\/` with the code/);
     // Protocol 7 onward states policy only; flag-level syntax lives in `inkan help`.
     assert.match(agents, /`inkan help` gives the command syntax/);
-    assert.doesNotMatch(agents, /--accept|--met|--unmet|--reason|--decision|--lane|--status/);
+    assert.doesNotMatch(agents, /--accept|--met|--unmet|--reason|--decision|--follows|--lane|--status/);
     assert.match(agents, /Include the printed `Inkan-Outcome: <id>` trailer in the final paragraph/);
     assert.match(agents, /When reading history, use commit trailers only as references/);
     assert.match(agents, /Missing trailers or unavailable referenced records are missing information/);
@@ -147,7 +151,7 @@ test('init --local writes the local-only block; a bare init keeps the mode; --re
   const first = api.init({ root, local: true });
   assert.equal(first.changed, true);
   let agents = fs.readFileSync(agentsFile, 'utf8');
-  assert.match(agents, /<!-- inkan-protocol: 13 -->/);
+  assert.match(agents, /<!-- inkan-protocol: 14 -->/);
   assert.match(agents, /<!-- inkan-mode: local -->/);
   assert.match(agents, /in local-only mode/);
   assert.match(agents, /The record stays on this checkout and is not committed with the code/);
@@ -179,18 +183,21 @@ test('init --local upgrades an earlier protocol to local-only and still refuses 
   assert.match(agents, /Keep `\.inkan\/` on this checkout only; do not commit it/);
   assert.equal(api.init({ root }).changed, false);
 
-  // Generated protocol 11 and 12 local blocks upgrade to protocol 13 and stay local.
+  // Generated protocol 11 through 13 local blocks upgrade to protocol 14 and stay local.
+  fs.writeFileSync(agentsFile, `# Agent instructions\n\n${api.protocolBlock('en', 13, 'local')}\n`);
+  assert.equal(api.init({ root }).changed, true);
+  assert.match(fs.readFileSync(agentsFile, 'utf8'), /<!-- inkan-protocol: 14 -->[\s\S]*<!-- inkan-mode: local -->[\s\S]*review of closed work asks for changes[\s\S]*Keep `\.inkan\/` on this checkout only/);
   fs.writeFileSync(agentsFile, `# Agent instructions\n\n${api.protocolBlock('en', 12, 'local')}\n`);
   assert.equal(api.init({ root }).changed, true);
-  assert.match(fs.readFileSync(agentsFile, 'utf8'), /<!-- inkan-protocol: 13 -->[\s\S]*<!-- inkan-mode: local -->[\s\S]*Name as an assumption every part/);
+  assert.match(fs.readFileSync(agentsFile, 'utf8'), /<!-- inkan-protocol: 14 -->[\s\S]*<!-- inkan-mode: local -->[\s\S]*Name as an assumption every part/);
   fs.writeFileSync(agentsFile, `# Agent instructions\n\n${api.protocolBlock('en', 11, 'local')}\n`);
   assert.equal(api.init({ root }).changed, true);
   const upgraded = fs.readFileSync(agentsFile, 'utf8');
-  assert.match(upgraded, /<!-- inkan-protocol: 13 -->/);
+  assert.match(upgraded, /<!-- inkan-protocol: 14 -->/);
   assert.match(upgraded, /<!-- inkan-mode: local -->/);
   assert.match(upgraded, /new work starts from rule 1, not from the log/);
 
-  const localBlock = api.protocolBlock('en', 13, 'local');
+  const localBlock = api.protocolBlock('en', 14, 'local');
   const edited = localBlock.replace('Never report success', 'HAND EDITED');
   fs.writeFileSync(agentsFile, `# Agent instructions\n\n${edited}\n`);
   assert.throws(() => api.init({ root }), /edited by hand/);
@@ -537,6 +544,115 @@ test('log <id> returns the full closed record', () => {
 test('log rejects an unknown id', () => {
   const root = repo();
   assert.throws(() => api.log({ root, id: '2026-01-01-aaaa' }), /unknown outcome/);
+});
+
+// --- follow-ups (decision 0020) -------------------------------------------
+
+function closedOutcome(root, outcome) {
+  const begun = api.begin({ root, outcome, accept: ['a'] });
+  api.end({ root, id: begun.id, met: ['1'], note: 'done' });
+  return begun.id;
+}
+
+function beginOnly(root, id, follows) {
+  store.createOutcomeFile(root, id, {
+    v: 1,
+    type: 'begin',
+    id,
+    ts: '2026-01-01T00:00:00.000Z',
+    outcome: `outcome ${id}`,
+    criteria: ['a'],
+    decisions: [],
+    lane: null,
+    ...(follows ? { follows } : {}),
+  });
+}
+
+test('begin --follows records closed outcomes and leaves their files byte-for-byte unchanged', () => {
+  const root = repo();
+  const first = closedOutcome(root, 'Ship account recovery');
+  const second = closedOutcome(root, 'Ship audit log');
+  const before = [first, second].map((id) => fs.readFileSync(store.outcomeFile(root, id)));
+
+  const followUp = api.begin({ root, outcome: 'Fix review findings', accept: ['b'], follows: [first, second, first] });
+  assert.deepEqual(followUp.follows, [first, second]);
+  assert.deepEqual(store.readOutcomeEvents(root, followUp.id)[0].follows, [first, second]);
+  assert.deepEqual([first, second].map((id) => fs.readFileSync(store.outcomeFile(root, id))), before);
+  // An outcome that follows nothing writes the begin event it always did.
+  assert.equal(Object.hasOwn(store.readOutcomeEvents(root, first)[0], 'follows'), false);
+
+  api.end({ root, id: followUp.id, met: ['1'], note: 'fixed' });
+  assert.deepEqual([first, second].map((id) => fs.readFileSync(store.outcomeFile(root, id))), before);
+  assert.equal(api.log({ root, id: first }).record.status, 'completed');
+});
+
+test('begin --follows refuses a malformed, unknown, or open outcome and writes no file', () => {
+  const root = repo();
+  const open = api.begin({ root, outcome: 'still going', accept: ['a'] }).id;
+  const closed = closedOutcome(root, 'done');
+  const count = () => store.listOutcomeIds(root).length;
+  const before = count();
+  assert.throws(() => api.begin({ root, outcome: 'x', follows: ['../escape'] }), /malformed outcome id "\.\.\/escape"/);
+  assert.throws(() => api.begin({ root, outcome: 'x', follows: ['2026-01-01-0000-zzzz'] }), /unknown outcome "2026-01-01-0000-zzzz"/);
+  assert.throws(() => api.begin({ root, outcome: 'x', follows: [closed, open] }), /is still open; --follows names a closed outcome/);
+  assert.equal(count(), before);
+});
+
+test('status and log <id> name each followed outcome with its status, or missing', () => {
+  const root = repo();
+  const first = closedOutcome(root, 'first');
+  const gone = closedOutcome(root, 'pruned later');
+  const followUp = api.begin({ root, outcome: 'follow-up', accept: ['a'], follows: [first, gone] }).id;
+  fs.rmSync(store.outcomeFile(root, gone));
+
+  const expected = [
+    { id: first, status: 'completed' },
+    { id: gone, status: null },
+  ];
+  assert.deepEqual(api.status({ root }).open[0].followLinks, expected);
+  assert.deepEqual(api.log({ root, id: followUp }).record.followLinks, expected);
+  assert.deepEqual(api.log({ root }).records.find((r) => r.id === followUp).follows, [first, gone]);
+});
+
+test('log <id> returns the thread of outcomes it follows and that follow it, oldest first', () => {
+  const root = repo();
+  const a = closedOutcome(root, 'Ship account recovery');
+  const b = api.begin({ root, outcome: 'Review round one', accept: ['a'], follows: [a] }).id;
+  api.end({ root, id: b, met: ['1'], note: 'done' });
+  const c = api.begin({ root, outcome: 'Review round two', accept: ['a'], follows: [b] }).id;
+  const d = api.begin({ root, outcome: 'Docs review', accept: ['a'], follows: [a] }).id;
+  const e = closedOutcome(root, 'unrelated');
+
+  // Sealed order, which within one minute is not id order.
+  const thread = (id) => api.log({ root, id }).record.thread;
+  const summary = (ids) =>
+    ids.map((id) => {
+      const r = api.log({ root, id }).record;
+      return { id, status: r.closed ? r.status : 'open', outcome: r.outcome };
+    });
+
+  // A sibling follow-up of an earlier outcome is in that outcome's thread, not in b's.
+  assert.deepEqual(thread(a), summary([a, b, c, d]));
+  assert.deepEqual(thread(b), summary([a, b, c]));
+  assert.deepEqual(thread(c), summary([a, b, c]));
+  assert.deepEqual(thread(e), summary([e]));
+
+  // A missing file sorts by the minute in its id, before anything sealed later in that minute.
+  const expected = [{ id: a, status: null, outcome: null }, ...summary([b, c])];
+  fs.rmSync(store.outcomeFile(root, a));
+  assert.deepEqual(thread(c), expected);
+});
+
+test('log <id> finds followers whose ids sort before it within the same minute', () => {
+  const root = repo();
+  beginOnly(root, '2026-01-01-0000-zzzz');
+  beginOnly(root, '2026-01-01-0000-bbbb', ['2026-01-01-0000-zzzz']);
+  beginOnly(root, '2026-01-01-0000-0000', ['2026-01-01-0000-bbbb']);
+  beginOnly(root, '2025-12-31-2359-cccc');
+  assert.deepEqual(
+    api.log({ root, id: '2026-01-01-0000-zzzz' }).record.thread.map((t) => t.id),
+    ['2026-01-01-0000-0000', '2026-01-01-0000-bbbb', '2026-01-01-0000-zzzz'],
+  );
 });
 
 // --- two worktrees of one repo -------------------------------------------

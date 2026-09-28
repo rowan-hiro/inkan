@@ -206,3 +206,20 @@ test('legacy Git metadata remains readable without changing the events', () => {
   assert.equal(record.status, 'completed');
   assert.equal(JSON.stringify(events), before);
 });
+
+test('begin follows folds into the record and stays out of the contract hash', () => {
+  const plain = [begin()];
+  const linked = [begin({ follows: ['2025-12-31-2300-bbbb', '2025-12-31-2300-bbbb', '2025-12-30-cccc'] })];
+  const record = fold(linked, FILE);
+  assert.deepEqual(record.follows, ['2025-12-31-2300-bbbb', '2025-12-30-cccc']);
+  assert.deepEqual(fold(plain, FILE).follows, []);
+  assert.equal(record.contractHash, fold(plain, FILE).contractHash);
+  // An end written with the unlinked hash closes the linked record cleanly.
+  assert.equal(fold([...linked, endWith(plain)], FILE).status, 'completed');
+});
+
+test('a begin follows that is not a list of outcome ids is corrupt', () => {
+  for (const follows of ['2025-12-31-2300-bbbb', ['not-an-id'], [42]]) {
+    assert.throws(() => fold([begin({ follows })], FILE), /begin follows must be a list of outcome ids/);
+  }
+});

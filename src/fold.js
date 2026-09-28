@@ -3,6 +3,7 @@
 // rule. Never repaired, here or anywhere else.
 
 import crypto from 'node:crypto';
+import { OUTCOME_ID_RE } from './store.js';
 
 const EVENT_TYPES = new Set(['begin', 'amend', 'end']);
 const STATUSES = new Set(['completed', 'partial', 'abandoned']);
@@ -23,8 +24,10 @@ export function canonicalJSON(value) {
 
 /**
  * sha256 over canonical JSON of { outcome, criteria with withdrawn flags,
- * decisions, amendments as [reason, addition] }. The lane tag is excluded on
- * purpose: it is a filing label, not part of what was promised.
+ * decisions, amendments as [reason, addition] }. The lane tag and the follow
+ * links are excluded on purpose: a filing label and a pointer to earlier work
+ * are not part of what was promised, and leaving the links out keeps every
+ * existing hash, and readers that predate them, valid (decision 0020).
  */
 export function computeContractHash({ outcome, criteria, decisions, amendments }) {
   const payload = {
@@ -57,6 +60,7 @@ export function fold(events, file) {
     outcome: null,
     lane: null,
     decisions: [],
+    follows: [],
     criteria: [],
     amendments: [],
     sealedAt: null,
@@ -88,6 +92,13 @@ export function fold(events, file) {
       }
       for (const d of event.decisions ?? []) {
         if (!record.decisions.includes(d)) record.decisions.push(d);
+      }
+      const follows = event.follows ?? [];
+      if (!Array.isArray(follows) || follows.some((f) => typeof f !== 'string' || !OUTCOME_ID_RE.test(f))) {
+        throw corrupt(where, 'begin follows must be a list of outcome ids');
+      }
+      for (const f of follows) {
+        if (!record.follows.includes(f)) record.follows.push(f);
       }
       return;
     }

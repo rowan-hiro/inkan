@@ -229,6 +229,36 @@ test('begin beside another open outcome prints the new id on stdout and names th
   assert.match(status.stdout, new RegExp(`\\[${second.stdout.trim()}\\] open`));
 });
 
+test('begin --follows links a closed outcome, and log and status print the link and the thread', () => {
+  const dir = tmpDir();
+  assert.equal(run(INKAN, ['init'], dir).status, 0);
+  const first = run(INKAN, ['begin', 'Ship it', '--accept', 'one'], dir).stdout.trim();
+  assert.equal(run(INKAN, ['end', '--met', '1', '--note', 'shipped'], dir).status, 0);
+  const before = fs.readFileSync(path.join(dir, '.inkan', 'outcomes', `${first}.jsonl`), 'utf8');
+
+  const begin = run(INKAN, ['begin', 'Fix review findings', '--accept', 'two', '--follows', first], dir);
+  assert.equal(begin.status, 0);
+  const followUp = begin.stdout.trim();
+  assert.equal(fs.readFileSync(path.join(dir, '.inkan', 'outcomes', `${first}.jsonl`), 'utf8'), before);
+
+  const status = run(INKAN, ['status'], dir);
+  assert.match(status.stdout, new RegExp(`^  follows: ${first} \\(completed\\)$`, 'm'));
+  assert.doesNotMatch(status.stdout, /thread:/);
+
+  const log = run(INKAN, ['log'], dir);
+  assert.match(log.stdout, new RegExp(`^${followUp}  open  Fix review findings  follows ${first}$`, 'm'));
+  assert.match(log.stdout, new RegExp(`^${first}  completed  Ship it  \\(1/1 met\\)$`, 'm'));
+
+  const logFirst = run(INKAN, ['log', first], dir);
+  assert.match(logFirst.stdout, new RegExp(`^  thread:\\n[\\s\\S]*^  \\* ${first}  completed  Ship it$`, 'm'));
+  assert.match(logFirst.stdout, new RegExp(`^    ${followUp}  open  Fix review findings$`, 'm'));
+  assert.doesNotMatch(logFirst.stdout, /follows:/);
+
+  const refused = run(INKAN, ['begin', 'x', '--follows', followUp], dir);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /is still open; --follows names a closed outcome/);
+});
+
 test('skill install prints a repository-relative path, never a machine-local absolute path', () => {
   const dir = tmpDir();
   assert.equal(run(INKAN, ['init'], dir).status, 0);

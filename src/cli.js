@@ -12,9 +12,7 @@ import * as store from './store.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(path.join(here, '..', 'package.json'), 'utf8'));
-
-// Matches the current YYYY-MM-DD-HHMM-xxxx id form and the legacy YYYY-MM-DD-xxxx form.
-const OUTCOME_ID_RE = /^\d{4}-\d{2}-\d{2}-(?:\d{4}-)?[0-9a-z]{4}$/;
+const { OUTCOME_ID_RE } = store;
 
 const HELP = `Usage: inkan <command> [options]
 
@@ -24,10 +22,13 @@ Commands:
       --local keeps .inkan/ on this checkout and does not commit it;
       --repo is the default for a new repository. Omit both to keep
       the current mode. --claude also links CLAUDE.md to AGENTS.md.
-  begin "<outcome>" [--accept <text>]... [--decision <id>]... [--lane <tag>]
+  begin "<outcome>" [--accept <text>]... [--decision <id>]... [--follows <id>]...
+        [--lane <tag>]
       Seal a new outcome; prints its id. Repeat --accept once per
       observable criterion; they are numbered from 1 in that order.
       Repeat --decision once per decision record the work is bound by.
+      Repeat --follows once per closed outcome this work follows up, such
+      as review changes to closed work; the followed outcome is unchanged.
       Use --lane only where the repository already files outcomes by lane.
   amend --reason <text> [<addition>] [--accept <text>]... [--withdraw <n>]...
         [--decision <id>]... [<id>]
@@ -43,7 +44,8 @@ Commands:
       Print every open outcome.
   log [-n <count>] [--since <date>] [--grep <regex>] [--status <s>]
       [--decision <id>] [--lane <tag>] [<id>]
-      Print the outcome log, newest first; <id> prints one outcome in full.
+      Print the outcome log, newest first; <id> prints one outcome in full,
+      with the thread of outcomes it follows and that follow it.
       Filters combine.
   doctor
       Optional, read-only file diagnostic. Reports corrupt outcomes, id
@@ -128,11 +130,26 @@ function printRecord(record) {
     const links = record.decisionLinks.map((d) => `${d.id} (${d.status ?? 'missing'})`);
     console.log(`  decisions: ${links.join(', ')}`);
   }
+  if (record.followLinks.length > 0) {
+    const links = record.followLinks.map((f) => `${f.id} (${f.status ?? 'missing'})`);
+    console.log(`  follows: ${links.join(', ')}`);
+  }
 
   if (record.closed) {
     console.log(`  closed: ${record.closedAt}`);
     console.log(`  status: ${record.status}`);
     console.log(`  note: ${record.note}`);
+  }
+
+  // Only `log <id>` carries the thread, and only when there is a link.
+  if (record.thread && record.thread.length > 1) {
+    console.log('  thread:');
+    for (const t of record.thread) {
+      const marker = t.id === record.id ? '  * ' : '    ';
+      const parts = [t.id, t.status ?? 'missing'];
+      if (t.outcome !== null) parts.push(t.outcome);
+      console.log(`${marker}${parts.join('  ')}`);
+    }
   }
 }
 
@@ -162,6 +179,7 @@ function printLogLine(record) {
     const met = (record.dispositions ?? []).filter((d) => d.met).length;
     parts.push(`(${met}/${live} met)`);
   }
+  if (record.follows.length > 0) parts.push(`follows ${record.follows.join(', ')}`);
   console.log(parts.join('  '));
 }
 
@@ -256,6 +274,7 @@ function run(argv) {
         const opts = {
           accept: { type: 'string', multiple: true, default: [] },
           decision: { type: 'string', multiple: true, default: [] },
+          follows: { type: 'string', multiple: true, default: [] },
           lane: { type: 'string' },
         };
         const { values, positionals } = parseArgs({ args: rest, options: opts, allowPositionals: true });

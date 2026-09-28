@@ -110,3 +110,9 @@ Protocol 12 (2026-09-24) implements 0019. Rule 1 has new work state its scope fr
 Status: accepted -> accepted
 
 Protocol 13 (2026-09-24) revises rule 1 per the 0019 history: new work states its outcome and scope from the request and the repository's structure before running inkan status or reading history, names every part of that scope the request does not say itself as an assumption, and asks when an assumption would change the work. The protocol 12 trigger for requests that name something general is removed. init upgrades generated protocols 1 through 12 to protocol 13, keeps local mode, and still refuses hand-edited blocks.
+
+### 2026-09-28T07:24:49.866Z, outcome 2026-09-28-0717-yhs6
+
+Status: accepted -> accepted
+
+Protocol 14 (2026-09-28) implements 0020: rule 5 says that when review of closed work asks for changes, the new outcome's inkan begin names each closed outcome it follows. The sentence names what begin must carry and leaves the --follows flag to inkan help, per 0008. init upgrades generated protocols 1 through 13 to protocol 14, keeps local mode, and still refuses hand-edited blocks.

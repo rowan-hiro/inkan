@@ -81,6 +81,80 @@ function resolveDecisionLinks(root, ids) {
   });
 }
 
+/** The record for `id`, or null when its file is gone, as after a prune (decision 0017). */
+function loadRecordIfPresent(root, id) {
+  try {
+    return loadRecord(root, id);
+  } catch (err) {
+    if (err instanceof InkanError) return null;
+    throw err;
+  }
+}
+
+function recordStatus(record) {
+  return record.closed ? record.status : 'open';
+}
+
+/** `{ id, status }` for each followed outcome id, `status: null` when the file is missing. */
+function resolveFollowLinks(root, ids) {
+  return ids.map((id) => {
+    const record = loadRecordIfPresent(root, id);
+    return { id, status: record ? recordStatus(record) : null };
+  });
+}
+
+/**
+ * Every outcome `record` follows and every outcome that follows it, directly
+ * or through others, with `record` itself, in the order they were sealed;
+ * `status` and `outcome` are null for a missing file. Earlier outcomes are
+ * read along the links. A follow-up is begun after what it follows has
+ * closed, so followers are looked for only among ids from the record's UTC
+ * day on (decision 0009).
+ */
+function followThread(root, record) {
+  const members = new Map([[record.id, record]]);
+  const pending = [...record.follows];
+  while (pending.length > 0) {
+    const id = pending.pop();
+    if (members.has(id)) continue;
+    const earlier = loadRecordIfPresent(root, id);
+    members.set(id, earlier);
+    if (earlier) pending.push(...earlier.follows);
+  }
+
+  const day = store.idSortKey(record.id).slice(0, 10);
+  const candidates = new Map();
+  for (const id of store.listOutcomeIds(root)) {
+    if (id === record.id || store.idSortKey(id) < day) continue;
+    const events = store.readOutcomeEvents(root, id);
+    const follows = events[0]?.follows;
+    if (Array.isArray(follows) && follows.length > 0) candidates.set(id, events);
+  }
+  // Ids within one minute do not sort by time, so repeat until nothing is added.
+  const reached = new Set([record.id]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const [id, events] of candidates) {
+      if (reached.has(id) || !events[0].follows.some((f) => reached.has(f))) continue;
+      reached.add(id);
+      members.set(id, fold(events, store.outcomeLabel(id)));
+      grew = true;
+    }
+  }
+
+  return [...members.entries()]
+    .map(([id, r]) => ({ id, key: sealedKey(id, r), status: r ? recordStatus(r) : null, outcome: r ? r.outcome : null }))
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : store.compareOutcomeIds(a.id, b.id)))
+    .map(({ key, ...entry }) => entry);
+}
+
+/** When an outcome was sealed: its begin time, or the minute in its id when the file is gone. */
+function sealedKey(id, record) {
+  if (record) return record.sealedAt;
+  const [year, month, day, hhmm] = store.idSortKey(id).split('-');
+  return `${year}-${month}-${day}T${hhmm.slice(0, 2)}:${hhmm.slice(2)}:00.000Z`;
+}
+
 function requireStatus(status) {
   const normalized = String(status).toLowerCase();
   if (!decisions.STATUSES.includes(normalized)) throw new InkanError(`malformed status "${status}" (expected one of ${decisions.STATUSES.join(', ')})`);
@@ -108,10 +182,25 @@ function resolveTarget(root, id) {
   return open;
 }
 
-export function begin({ root, outcome, accept = [], decision = [], lane }) {
+/** `ids` without duplicates, each a closed outcome in this repository (decision 0020). */
+function validateFollows(root, ids) {
+  const unique = [...new Set(ids)];
+  for (const id of unique) {
+    if (!store.OUTCOME_ID_RE.test(id)) throw new InkanError(`malformed outcome id "${id}"`);
+    if (!loadRecord(root, id).closed) {
+      throw new InkanError(`outcome "${id}" is still open; --follows names a closed outcome`);
+    }
+  }
+  return unique;
+}
+
+export function begin({ root, outcome, accept = [], decision = [], lane, follows = [] }) {
   const resolvedRoot = resolveRoot(root);
   if (!outcome || !outcome.trim()) throw new InkanError('an outcome is required');
   validateDecisionIds(resolvedRoot, decision);
+  // A follow-up points at closed outcomes and never writes to them: they stay
+  // final, and the link lives only in the new file (decision 0020).
+  const followed = validateFollows(resolvedRoot, follows);
   // Other open outcomes belong to whoever began them. They are reported,
   // never closed or otherwise touched here (decision 0013).
   const openAlongside = openRecords(resolvedRoot).map((r) => ({ id: r.id, outcome: r.outcome }));
@@ -130,9 +219,10 @@ export function begin({ root, outcome, accept = [], decision = [], lane }) {
       decisions: decision,
       lane: resolvedLane,
     };
+    if (followed.length > 0) event.follows = followed;
     try {
       store.createOutcomeFile(resolvedRoot, id, event);
-      return { id, outcome, criteria: accept, decisions: decision, lane: resolvedLane, openAlongside };
+      return { id, outcome, criteria: accept, decisions: decision, lane: resolvedLane, follows: followed, openAlongside };
     } catch (err) {
       existingIds.push(id);
       if (attempt === 4) throw err;
@@ -226,7 +316,11 @@ export function status({ root }) {
   const resolvedRoot = resolveRoot(root);
   const open = openRecords(resolvedRoot)
     .sort((a, b) => store.compareOutcomeIds(a.id, b.id))
-    .map((r) => ({ ...r, decisionLinks: resolveDecisionLinks(resolvedRoot, r.decisions) }));
+    .map((r) => ({
+      ...r,
+      decisionLinks: resolveDecisionLinks(resolvedRoot, r.decisions),
+      followLinks: resolveFollowLinks(resolvedRoot, r.follows),
+    }));
   return { open };
 }
 
@@ -257,7 +351,14 @@ export function log({ root, n, lane, since, grep, status, decision, id }) {
   const resolvedRoot = resolveRoot(root);
   if (id) {
     const record = loadRecord(resolvedRoot, id);
-    return { record: { ...record, decisionLinks: resolveDecisionLinks(resolvedRoot, record.decisions) } };
+    return {
+      record: {
+        ...record,
+        decisionLinks: resolveDecisionLinks(resolvedRoot, record.decisions),
+        followLinks: resolveFollowLinks(resolvedRoot, record.follows),
+        thread: followThread(resolvedRoot, record),
+      },
+    };
   }
   const limit = n ?? 20;
 
@@ -751,7 +852,55 @@ Outcome log: \`.inkan/outcomes/<id>.jsonl\`, one append-only file per outcome. K
 ${END_MARKER}`;
 }
 
-const PROTOCOL_VERSION = 13;
+// Protocol 14 repo mode: v13 with review follow-ups of closed work named by
+// begin in rule 5 (decision 0020).
+function protocolBlockV14Repo(lang) {
+  return `${START_MARKER}
+<!-- inkan-protocol: 14 -->
+<!-- inkan-lang: ${lang} -->
+<!-- inkan-mode: repo -->
+
+## Agent protocol: sealed outcomes
+
+This repository uses Inkan (\`inkan\`, alias \`ink\`). Inkan keeps a trustworthy record of what the work was meant to deliver and what was declared at close. It does not inspect commits, run tests, or judge the result; the repository's own checks do that. Write outcome prose in ${lang}. This block states the policy; \`inkan help\` gives the command syntax.
+
+1. **Seal before durable changes.** For new work, first state the outcome and its scope from the request and the repository's current structure, such as its README and top-level modules, before running \`inkan status\` or reading the outcome log or the decision records. Name as an assumption every part of that scope the request does not say itself, and ask when the assumptions would change the work. Before changing code, configuration, documentation, or dependencies, run \`inkan status\`; if it shows an open outcome that is not your work, follow rule 4 first. Then read the decision records and bind those that constrain the scope. A new decision record names the part of the project it constrains as the subject of its decision, and says so plainly when it binds the whole project. Then run \`inkan begin\` with the outcome, one observable acceptance criterion at a time, and every decision record the work is bound by. Seal project work, not machine setup: work that will leave nothing to commit, such as installing tools, fetching or preparing data, or changing local settings, needs no seal however many machines repeat it, and a project change it turns out to need is sealed as usual. Write sealed outcome and decision prose for the published repository: name paths relative to the repository root, never a machine-local absolute path, so the record does not expose a checkout location and remains readable after a clone. When the host has a planning step before changes, the plan states the outcome, its criteria, and its decisions in the words \`inkan begin\` will receive, and running it with that text unchanged is the first action after the plan is approved. File the outcome by lane only when the repository already files outcomes by lane.
+2. **The seal is a fact.** Deliver what it says. If circumstances change, do not reinterpret it: run \`inkan amend\` with the reason and the added or withdrawn criteria. The original text stays. Never question why the outcome was sealed the way it was at the time.
+3. **Close with dispositions, then commit.** Run \`inkan end\` with a disposition, met or unmet, for every live criterion and a note on what happened. Commit the outcome record with the work. Include the printed \`Inkan-Outcome: <id>\` trailer in the final paragraph of the landing commit message, beside any other trailers with no blank line between them. Never report success without closing the outcome.
+4. **Re-anchor after context loss.** Run \`inkan status\`, and \`inkan log -n 3\` only when resuming work that may be yours; new work starts from rule 1, not from the log. An open outcome that is the work you were asked to do is your task: continue it, or close it with a note. An open outcome that is not your work belongs to another session: leave it alone. Never close, amend, or abandon an outcome you did not work on, and do not judge why it is still open. Before beginning your own outcome beside it, stop and tell the person it is there, and ask whether your work should run in its own git worktree, because separate worktrees keep each session's edits apart.
+5. **Closed outcomes are final.** Reviewing the log is reading, not re-checking. Never re-verify, re-attest, or re-close a closed outcome. If a past declaration now looks wrong, or review of closed work asks for changes, that is a new outcome with its own seal, and \`inkan begin\` names each closed outcome it follows. When reading history, use commit trailers only as references. Missing trailers or unavailable referenced records are missing information, not failed outcomes or a reason to verify delivery or repair history.
+
+Decision records live in \`.inkan/decisions/\`. Their Context and Decision sections record the scenario at the time and are never edited. To challenge one, run \`inkan decision update\` with the new status and the reason, or add a new record that supersedes it.
+
+Outcome log: \`.inkan/outcomes/<id>.jsonl\`, one append-only file per outcome. Commit \`.inkan/\` with the code. Do not edit these files by hand.
+${END_MARKER}`;
+}
+
+// Protocol 14 local-only mode: the v13 local block with the same rule 5
+// change as repo mode (decision 0020).
+function protocolBlockV14Local(lang) {
+  return `${START_MARKER}
+<!-- inkan-protocol: 14 -->
+<!-- inkan-lang: ${lang} -->
+<!-- inkan-mode: local -->
+
+## Agent protocol: sealed outcomes
+
+This repository uses Inkan (\`inkan\`, alias \`ink\`) in local-only mode. Inkan keeps a trustworthy record of what the work was meant to deliver and what was declared at close. The record stays on this checkout and is not committed with the code. It does not inspect commits, run tests, or judge the result; the repository's own checks do that. Write outcome prose in ${lang}. This block states the policy; \`inkan help\` gives the command syntax.
+
+1. **Seal before durable changes.** For new work, first state the outcome and its scope from the request and the repository's current structure, such as its README and top-level modules, before running \`inkan status\` or reading the outcome log or the decision records. Name as an assumption every part of that scope the request does not say itself, and ask when the assumptions would change the work. Before changing code, configuration, documentation, or dependencies, run \`inkan status\`; if it shows an open outcome that is not your work, follow rule 4 first. Then read the decision records and bind those that constrain the scope. A new decision record names the part of the project it constrains as the subject of its decision, and says so plainly when it binds the whole project. Then run \`inkan begin\` with the outcome, one observable acceptance criterion at a time, and every decision record the work is bound by. Seal project work, not machine setup: work that will leave nothing to commit, such as installing tools, fetching or preparing data, or changing local settings, needs no seal however many machines repeat it, and a project change it turns out to need is sealed as usual. Write sealed outcome and decision prose with paths relative to the repository root, never a machine-local absolute path, so the record does not expose a checkout location. When the host has a planning step before changes, the plan states the outcome, its criteria, and its decisions in the words \`inkan begin\` will receive, and running it with that text unchanged is the first action after the plan is approved. File the outcome by lane only when the repository already files outcomes by lane.
+2. **The seal is a fact.** Deliver what it says. If circumstances change, do not reinterpret it: run \`inkan amend\` with the reason and the added or withdrawn criteria. The original text stays. Never question why the outcome was sealed the way it was at the time.
+3. **Close with dispositions.** Run \`inkan end\` with a disposition, met or unmet, for every live criterion and a note on what happened. Do not commit the outcome record, and do not include an \`Inkan-Outcome\` trailer in the landing commit. Never report success without closing the outcome.
+4. **Re-anchor after context loss.** Run \`inkan status\`, and \`inkan log -n 3\` only when resuming work that may be yours; new work starts from rule 1, not from the log. An open outcome that is the work you were asked to do is your task: continue it, or close it with a note. An open outcome that is not your work belongs to another session: leave it alone. Never close, amend, or abandon an outcome you did not work on, and do not judge why it is still open. Before beginning your own outcome beside it, stop and tell the person it is there, and ask whether your work should run in its own git worktree, because separate worktrees keep each session's edits apart.
+5. **Closed outcomes are final.** Reviewing the log is reading, not re-checking. Never re-verify, re-attest, or re-close a closed outcome. If a past declaration now looks wrong, or review of closed work asks for changes, that is a new outcome with its own seal, and \`inkan begin\` names each closed outcome it follows. When reading history, use commit trailers only as references. Missing trailers or unavailable referenced records are missing information, not failed outcomes or a reason to verify delivery or repair history.
+
+Decision records live in \`.inkan/decisions/\`. Their Context and Decision sections record the scenario at the time and are never edited. To challenge one, run \`inkan decision update\` with the new status and the reason, or add a new record that supersedes it.
+
+Outcome log: \`.inkan/outcomes/<id>.jsonl\`, one append-only file per outcome. Keep \`.inkan/\` on this checkout only; do not commit it. Do not edit these files by hand.
+${END_MARKER}`;
+}
+
+const PROTOCOL_VERSION = 14;
 const PROTOCOL_MODES = ['repo', 'local'];
 
 function requireMode(mode) {
@@ -787,6 +936,7 @@ export function protocolBlock(lang, version = PROTOCOL_VERSION, mode = 'repo') {
   if (version === 11) return mode === 'local' ? protocolBlockV11Local(lang) : protocolBlockV11Repo(lang);
   if (version === 12) return mode === 'local' ? protocolBlockV12Local(lang) : protocolBlockV12Repo(lang);
   if (version === 13) return mode === 'local' ? protocolBlockV13Local(lang) : protocolBlockV13Repo(lang);
+  if (version === 14) return mode === 'local' ? protocolBlockV14Local(lang) : protocolBlockV14Repo(lang);
   throw new InkanError(`unknown protocol version ${version}`);
 }
 
